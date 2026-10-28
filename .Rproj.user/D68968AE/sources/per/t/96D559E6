@@ -1,0 +1,24 @@
+{
+    "id": "96D559E6",
+    "path": "~/GitHub/jablab/script/02_clean.R",
+    "project_path": "script/02_clean.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1793222193246.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1793222193,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1793222193,
+    "read_only": false,
+    "read_only_alternatives": []
+}
