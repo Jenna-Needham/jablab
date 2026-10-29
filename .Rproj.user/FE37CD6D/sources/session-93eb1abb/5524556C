@@ -1,24 +1,24 @@
 {
-    "id": "259D6D26",
-    "path": "~/jablab/work/vehicle_submersion_regression.R",
+    "id": "5524556C",
+    "path": "~/sta220/sta220-dashboard_marlton/data/acs_2024_nj_demographic_housing.csv",
     "project_path": null,
-    "type": "r_source",
-    "hash": "2275206048",
+    "type": "text",
+    "hash": "2051879246",
     "contents": "",
     "dirty": false,
-    "created": 1793258843271.0,
+    "created": 1793294804100.0,
     "source_on_save": false,
-    "relative_order": 4,
+    "relative_order": 2,
     "properties": {
         "source_window_id": "",
         "Source": "Source"
     },
     "folds": "",
-    "lastKnownWriteTime": 1792872437,
+    "lastKnownWriteTime": 1793295000,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1792872437,
+    "last_content_update": 1793295000,
     "read_only": false,
     "read_only_alternatives": []
 }
