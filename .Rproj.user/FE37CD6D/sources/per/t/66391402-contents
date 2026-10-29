@@ -1,0 +1,1615 @@
+################################################################################
+############                    SETUP                                   ############
+################################################################################
+
+# install.packages("brglm2")
+
+library(dplyr)
+library(janitor)
+library(nnet)
+library(brglm2)
+
+# IMPORTANT:
+# Run the main cleaning/analysis script first.
+#
+# This regression script uses the cleaned variables already created
+# in the object:
+#
+# submersion
+
+################################################################################
+############            PREPARE VARIABLES FOR REGRESSION                ############
+################################################################################
+
+# Set factor levels and reference categories.
+#
+# Outcome reference:
+#   Uninformed
+#
+# Predictor references:
+#   Gender = Man
+#   Race = White
+#   Education = High school or less
+#   Party ID = Independent
+
+submersion <- submersion %>%
+  mutate(
+    
+    information_status = factor(
+      information_status,
+      levels = c(
+        "Uninformed",
+        "Informed",
+        "Misinformed",
+        "Underinformed"
+      )
+    ),
+    
+    gender = factor(
+      gender,
+      levels = c(
+        "Man",
+        "Woman"
+      )
+    ),
+    
+    race_group = factor(
+      race_group,
+      levels = c(
+        "White",
+        "Black",
+        "Hispanic",
+        "Asian",
+        "Other"
+      )
+    ),
+    
+    education = factor(
+      education,
+      levels = c(
+        "High school or less",
+        "Some college / 2-year degree",
+        "College degree or higher"
+      )
+    ),
+    
+    pid3_model = factor(
+      pid3_model,
+      levels = c(
+        "Independent",
+        "Democrat",
+        "Republican"
+      )
+    )
+  )
+
+################################################################################
+############                    CHECK FACTORS                           ############
+################################################################################
+
+levels(submersion$information_status)
+levels(submersion$gender)
+levels(submersion$race_group)
+levels(submersion$education)
+levels(submersion$pid3_model)
+
+table(submersion$information_status, useNA = "ifany")
+table(submersion$gender, useNA = "ifany")
+table(submersion$race_group, useNA = "ifany")
+table(submersion$education, useNA = "ifany")
+table(submersion$pid3_model, useNA = "ifany")
+
+table(submersion$social_media_engagement, useNA = "ifany")
+table(submersion$listened_radio_news, useNA = "ifany")
+
+
+################################################################################
+############              BASIC DESCRIPTIVE CHECKS                     ############
+################################################################################
+
+# These checks help us see the basic relationship between
+# the predictors and information status before regression.
+
+############              Social Media Engagement                    ############
+
+# Mean social-media engagement within each information-status group.
+
+submersion %>%
+  filter(
+    !is.na(information_status),
+    !is.na(social_media_engagement)
+  ) %>%
+  group_by(information_status) %>%
+  summarise(
+    n = n(),
+    mean_social_media = mean(social_media_engagement),
+    sd_social_media = sd(social_media_engagement)
+  )
+
+
+############              Radio News                                 ############
+
+# Counts
+
+table(
+  submersion$listened_radio_news,
+  submersion$information_status
+)
+
+
+# Row percentages
+
+round(
+  prop.table(
+    table(
+      submersion$listened_radio_news,
+      submersion$information_status
+    ),
+    margin = 1
+  ) * 100,
+  1
+)
+
+################################################################################
+############                 SAMPLE SIZE CHECK                        ############
+################################################################################
+
+# Check how many respondents remain as variables are added.
+
+############              Information Status                         ############
+
+sum(
+  !is.na(submersion$information_status)
+)
+
+
+############              Add Social Media                           ############
+
+sum(
+  complete.cases(
+    submersion[, c(
+      "information_status",
+      "social_media_engagement"
+    )]
+  )
+)
+
+
+############              Add Radio                                  ############
+
+sum(
+  complete.cases(
+    submersion[, c(
+      "information_status",
+      "social_media_engagement",
+      "listened_radio_news"
+    )]
+  )
+)
+
+
+############              Add Gender                                 ############
+
+sum(
+  complete.cases(
+    submersion[, c(
+      "information_status",
+      "social_media_engagement",
+      "listened_radio_news",
+      "gender"
+    )]
+  )
+)
+
+
+############              Add Race                                   ############
+
+sum(
+  complete.cases(
+    submersion[, c(
+      "information_status",
+      "social_media_engagement",
+      "listened_radio_news",
+      "gender",
+      "race_group"
+    )]
+  )
+)
+
+
+############              Add Education                              ############
+
+sum(
+  complete.cases(
+    submersion[, c(
+      "information_status",
+      "social_media_engagement",
+      "listened_radio_news",
+      "gender",
+      "race_group",
+      "education"
+    )]
+  )
+)
+
+
+############              Add Political Party                        ############
+
+sum(
+  complete.cases(
+    submersion[, c(
+      "information_status",
+      "social_media_engagement",
+      "listened_radio_news",
+      "gender",
+      "race_group",
+      "education",
+      "pid3_model"
+    )]
+  )
+)
+
+################################################################################
+############              MODEL 1 FULL SAMPLE                         ############
+################################################################################
+
+# First, estimate Model 1 using everyone who has complete data
+# for the variables included in Model 1.
+#
+# This is useful for seeing how many cases Model 1 can use
+# before requiring political party identification.
+
+model1_full_data <- submersion %>%
+  select(
+    information_status,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education
+  ) %>%
+  na.omit()
+
+
+# Sample size
+
+nrow(model1_full_data)
+
+
+# Outcome counts
+
+table(model1_full_data$information_status)
+
+
+# Model 1 using its full available sample
+
+model1_full <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education,
+  
+  data = model1_full_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model1_full)
+
+
+################################################################################
+############          COMMON MODEL 1 / MODEL 2 SAMPLE                 ############
+################################################################################
+
+# For the main Model 1 vs. Model 2 comparison, use the SAME respondents
+# in both models.
+#
+# Because Model 2 includes political party, we create a dataset containing
+# complete cases for every variable required by Model 2.
+
+regression_data <- submersion %>%
+  select(
+    information_status,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education,
+    pid3_model
+  ) %>%
+  na.omit()
+
+################################################################################
+############              CHECK REGRESSION SAMPLE                     ############
+################################################################################
+
+# Total regression sample
+
+nrow(regression_data)
+
+# Outcome counts
+
+table(regression_data$information_status)
+
+# Outcome percentages
+
+round(
+  prop.table(
+    table(regression_data$information_status)
+  ) * 100,
+  1
+)
+
+# Main predictors
+
+table(regression_data$social_media_engagement)
+
+table(regression_data$listened_radio_news)
+
+# Controls
+
+table(regression_data$gender)
+
+table(regression_data$race_group)
+
+table(regression_data$education)
+
+table(regression_data$pid3_model)
+
+################################################################################
+############        CHECK REFERENCE CATEGORIES AGAIN                  ############
+################################################################################
+
+levels(regression_data$information_status)
+
+levels(regression_data$gender)
+
+levels(regression_data$race_group)
+
+levels(regression_data$education)
+
+levels(regression_data$pid3_model)
+
+################################################################################
+############            CHECK PREDICTORS BY OUTCOME                   ############
+################################################################################
+
+############              Social Media                               ############
+
+regression_data %>%
+  group_by(information_status) %>%
+  summarise(
+    n = n(),
+    mean_social_media = mean(social_media_engagement),
+    sd_social_media = sd(social_media_engagement)
+  )
+
+
+############              Radio                                      ############
+
+table(
+  regression_data$listened_radio_news,
+  regression_data$information_status
+)
+
+
+round(
+  prop.table(
+    table(
+      regression_data$listened_radio_news,
+      regression_data$information_status
+    ),
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+################################################################################
+############                    MODEL 1                               ############
+################################################################################
+
+# Model 1 includes:
+#
+# Social-media engagement
+# Radio news
+# Gender
+# Race
+# Education
+#
+# Uninformed is the reference outcome.
+
+
+model1 <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education,
+  
+  data = regression_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model1)
+
+
+################################################################################
+############                    MODEL 2                               ############
+################################################################################
+
+# Model 2 includes everything in Model 1
+# plus political party identification.
+
+
+model2 <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = regression_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model2)
+
+
+################################################################################
+############              CONFIRM SAME SAMPLE SIZE                    ############
+################################################################################
+
+# These should be equal because both models use regression_data.
+# Number of respondents in the common regression dataset
+
+nrow(regression_data)
+
+
+# Number of respondents actually used in each model
+
+nrow(model.frame(model1))
+
+nrow(model.frame(model2))
+
+
+# Confirm that Model 1 and Model 2 used the same number of respondents
+
+nrow(model.frame(model1)) == nrow(model.frame(model2))
+
+################################################################################
+############           MODEL 1 COEFFICIENTS AND SE                    ############
+################################################################################
+
+model1_summary <- summary(model1)
+
+model1_coef <- model1_summary$coefficients
+
+model1_se <- model1_summary$standard.errors
+
+
+model1_coef
+
+model1_se
+
+################################################################################
+############           MODEL 2 COEFFICIENTS AND SE                    ############
+################################################################################
+
+model2_summary <- summary(model2)
+
+model2_coef <- model2_summary$coefficients
+
+model2_se <- model2_summary$standard.errors
+
+
+model2_coef
+
+model2_se
+
+################################################################################
+############              MODEL 1 P-VALUES                            ############
+################################################################################
+
+# Calculate z-scores.
+
+model1_z <- model1_coef / model1_se
+
+
+# Calculate two-sided p-values.
+
+model1_p <- 2 * (1 - pnorm(abs(model1_z)))
+
+
+model1_z
+
+model1_p
+
+################################################################################
+############              MODEL 2 P-VALUES                            ############
+################################################################################
+
+model2_z <- model2_coef / model2_se
+
+
+model2_p <- 2 * (1 - pnorm(abs(model2_z)))
+
+
+model2_z
+
+model2_p
+
+################################################################################
+############              RELATIVE RISK RATIOS                        ############
+################################################################################
+
+# Exponentiating the regression coefficients gives
+# relative risk ratios (RRRs).
+
+
+############              Model 1                                    ############
+
+model1_RRR <- exp(model1_coef)
+
+model1_RRR
+
+
+############              Model 2                                    ############
+
+model2_RRR <- exp(model2_coef)
+
+model2_RRR
+
+################################################################################
+############           95% CONFIDENCE INTERVALS                      ############
+################################################################################
+
+############              Model 1                                    ############
+
+model1_lower <- exp(
+  model1_coef - 1.96 * model1_se
+)
+
+model1_upper <- exp(
+  model1_coef + 1.96 * model1_se
+)
+
+
+model1_lower
+
+model1_upper
+
+
+############              Model 2                                    ############
+
+model2_lower <- exp(
+  model2_coef - 1.96 * model2_se
+)
+
+model2_upper <- exp(
+  model2_coef + 1.96 * model2_se
+)
+
+
+model2_lower
+
+model2_upper
+
+################################################################################
+############              MAIN MEDIA PREDICTORS                       ############
+################################################################################
+
+# These are the two main predictors:
+#
+# social_media_engagement
+# listened_radio_news
+
+############              Model 1 RRRs                               ############
+
+model1_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+
+############              Model 1 p-values                           ############
+
+model1_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+
+############              Model 2 RRRs                               ############
+
+model2_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+
+############              Model 2 p-values                           ############
+
+model2_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+
+################################################################################
+############          MISINFORMED VS. UNINFORMED                     ############
+################################################################################
+
+# Uninformed is the reference outcome.
+#
+# Therefore, the Misinformed row tells us about the relative risk
+# of being Misinformed rather than Uninformed.
+
+############              Model 1                                    ############
+
+model1_RRR[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+model1_p[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+############              Model 2                                    ############
+
+model2_RRR[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+model2_p[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+################################################################################
+############              POLITICAL PARTY EFFECTS                     ############
+################################################################################
+
+# Political party appears only in Model 2.
+#
+# Independent is the reference category.
+
+
+############              RRRs                                       ############
+
+model2_RRR[, c(
+  "pid3_modelDemocrat",
+  "pid3_modelRepublican"
+)]
+
+############              p-values                                   ############
+
+model2_p[, c(
+  "pid3_modelDemocrat",
+  "pid3_modelRepublican"
+)]
+
+
+################################################################################
+############                  MODEL FIT                               ############
+################################################################################
+
+# Lower AIC indicates better relative model fit.
+#
+# Because Model 1 and Model 2 use the same respondents,
+# comparing their AIC values is appropriate.
+
+
+AIC(model1)
+
+AIC(model2)
+
+
+################################################################################
+############              CHECK FOR SMALL / EMPTY CELLS               ############
+################################################################################
+
+# Multinomial regression can have problems when some combinations
+# contain very few respondents or zero respondents.
+#
+# Check each control variable against the outcome.
+
+
+############              Gender                                     ############
+
+table(
+  regression_data$gender,
+  regression_data$information_status
+)
+
+
+############              Race                                       ############
+
+table(
+  regression_data$race_group,
+  regression_data$information_status
+)
+
+
+############              Education                                  ############
+
+table(
+  regression_data$education,
+  regression_data$information_status
+)
+
+
+############              Political Party                            ############
+
+table(
+  regression_data$pid3_model,
+  regression_data$information_status
+)
+
+
+################################################################################
+############                    FINAL CHECK                           ############
+################################################################################
+
+# Regression sample size
+
+nrow(regression_data)
+
+# Model sample sizes
+
+nrow(model.frame(model1))
+
+nrow(model.frame(model2))
+
+# Outcome distribution
+
+table(regression_data$information_status)
+
+
+# Reference categories
+
+levels(regression_data$information_status)
+
+levels(regression_data$gender)
+
+levels(regression_data$race_group)
+
+levels(regression_data$education)
+
+levels(regression_data$pid3_model)
+
+
+# Social-media engagement range
+
+range(
+  regression_data$social_media_engagement
+)
+
+
+# Radio distribution
+
+table(
+  regression_data$listened_radio_news
+)
+
+
+################################################################################
+############     BIAS-REDUCED MULTINOMIAL SENSITIVITY CHECK          ############
+################################################################################
+
+# This section is a sensitivity check.
+#
+# It is useful because some demographic groups have very small or empty
+# cells for certain information-status categories.
+#
+# The regular multinomial regression above should still be examined.
+# These models let us see whether the main conclusions are similar when
+# using a method that handles sparse cells better.
+
+
+############              Bias-Reduced Model 1                       ############
+
+br_model1 <- brmultinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education,
+  
+  data = regression_data,
+  ref = "Uninformed",
+  type = "AS_mean"
+)
+
+
+summary(br_model1)
+
+
+############              Bias-Reduced Model 2                       ############
+
+br_model2 <- brmultinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = regression_data,
+  ref = "Uninformed",
+  type = "AS_mean"
+)
+
+
+summary(br_model2)
+
+
+
+
+nrow(regression_data)
+
+table(regression_data$information_status)
+
+round(
+  prop.table(
+    table(regression_data$information_status)
+  ) * 100,
+  1
+)
+
+
+
+
+nrow(regression_data)
+
+table(regression_data$information_status)
+
+round(
+  prop.table(
+    table(regression_data$information_status)
+  ) * 100,
+  1
+)
+
+summary(model1)
+summary(model2)
+
+model1_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model1_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_RRR[, c(
+  "pid3_modelDemocrat",
+  "pid3_modelRepublican"
+)]
+
+model2_p[, c(
+  "pid3_modelDemocrat",
+  "pid3_modelRepublican"
+)]
+
+AIC(model1)
+AIC(model2)
+
+table(
+  regression_data$listened_radio_news,
+  regression_data$information_status
+)
+
+round(
+  prop.table(
+    table(
+      regression_data$listened_radio_news,
+      regression_data$information_status
+    ),
+    margin = 1
+  ) * 100,
+  1
+)
+
+regression_data %>%
+  group_by(information_status) %>%
+  summarise(
+    n = n(),
+    mean_social_media = mean(social_media_engagement),
+    sd_social_media = sd(social_media_engagement)
+  )
+
+
+################################################################################
+############       CREATE COLLAPSED INFORMATION STATUS                ############
+################################################################################
+
+# Combine Informed and Underinformed into one category.
+# Everyone in the new "All correct" category answered
+# all three knowledge questions correctly, regardless of confidence.
+
+submersion <- submersion %>%
+  mutate(
+    information_status_3cat = case_when(
+      as.character(information_status) %in%
+        c("Informed", "Underinformed") ~ "All correct",
+      
+      as.character(information_status) == "Misinformed" ~ "Misinformed",
+      
+      as.character(information_status) == "Uninformed" ~ "Uninformed",
+      
+      TRUE ~ NA_character_
+    ),
+    
+    information_status_3cat = factor(
+      information_status_3cat,
+      levels = c(
+        "Uninformed",
+        "Misinformed",
+        "All correct"
+      )
+    )
+  )
+
+############              Check Number of Respondents in each Category
+
+table(
+  submersion$information_status_3cat,
+  useNA = "ifany"
+)
+
+round(
+  prop.table(
+    table(submersion$information_status_3cat)
+  ) * 100,
+  1
+)
+
+############              Check Regression Sample
+
+
+regression_data_3cat <- submersion %>%
+  select(
+    information_status_3cat,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education,
+    pid3_model
+  ) %>%
+  na.omit()
+
+
+nrow(regression_data_3cat)
+
+table(regression_data_3cat$information_status_3cat)
+
+round(
+  prop.table(
+    table(regression_data_3cat$information_status_3cat)
+  ) * 100,
+  1
+)
+
+################################################################################
+############          COLLAPSED MODEL 1                              ############
+################################################################################
+
+model1_3cat <- multinom(
+  information_status_3cat ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education,
+  
+  data = regression_data_3cat,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model1_3cat)
+
+
+################################################################################
+############          COLLAPSED MODEL 2                              ############
+################################################################################
+
+model2_3cat <- multinom(
+  information_status_3cat ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = regression_data_3cat,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model2_3cat)
+
+################################################################################
+############          COLLAPSED MODEL 2 RESULTS                      ############
+################################################################################
+
+model2_3cat_summary <- summary(model2_3cat)
+
+model2_3cat_coef <- model2_3cat_summary$coefficients
+
+model2_3cat_se <- model2_3cat_summary$standard.errors
+
+
+# Relative risk ratios
+
+model2_3cat_RRR <- exp(model2_3cat_coef)
+
+
+# Calculate p-values
+
+model2_3cat_z <- model2_3cat_coef / model2_3cat_se
+
+model2_3cat_p <- 2 * (1 - pnorm(abs(model2_3cat_z)))
+
+
+################################################################################
+############          SOCIAL MEDIA AND RADIO                          ############
+################################################################################
+
+# Compare All correct with Uninformed.
+
+model2_3cat_RRR[
+  "All correct",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+model2_3cat_p[
+  "All correct",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+# Compare Misinformed with Uninformed.
+
+model2_3cat_RRR[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+model2_3cat_p[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+################################################################################
+############          PARTY IDENTIFICATION                            ############
+################################################################################
+
+# Independents remain the reference party category.
+
+model2_3cat_RRR[
+  ,
+  c(
+    "pid3_modelDemocrat",
+    "pid3_modelRepublican"
+  )
+]
+
+model2_3cat_p[
+  ,
+  c(
+    "pid3_modelDemocrat",
+    "pid3_modelRepublican"
+  )
+]
+
+
+################################################################################
+############          COLLAPSED MODEL FIT                             ############
+################################################################################
+
+AIC(model1_3cat)
+
+AIC(model2_3cat)
+
+# How many respondents are in each collapsed category?
+
+table(regression_data_3cat$information_status_3cat)
+
+round(
+  prop.table(
+    table(regression_data_3cat$information_status_3cat)
+  ) * 100,
+  1
+)
+
+
+# Social media and radio: RRRs and p-values
+
+model2_3cat_RRR[
+  ,
+  c("social_media_engagement", "listened_radio_news")
+]
+
+model2_3cat_p[
+  ,
+  c("social_media_engagement", "listened_radio_news")
+]
+
+
+# Party identification: Independents are the reference group
+
+model2_3cat_RRR[
+  ,
+  c("pid3_modelDemocrat", "pid3_modelRepublican")
+]
+
+model2_3cat_p[
+  ,
+  c("pid3_modelDemocrat", "pid3_modelRepublican")
+]
+
+
+################################################################################
+############          NEW SES VARIABLES                                  ############
+################################################################################
+
+submersion <- submersion %>%
+  mutate(
+    income_group = factor(
+      income_group,
+      levels = c(
+        "Under $40,000",
+        "$40,000 to $79,999",
+        "$80,000 to $149,999",
+        "$150,000 or more"
+      )
+    ),
+    
+    home_ownership = factor(
+      home_ownership,
+      levels = c(
+        "Own",
+        "Rent",
+        "Other"
+      )
+    ),
+    
+    region_group = factor(
+      region_group,
+      levels = c(
+        "Northeast",
+        "Midwest",
+        "South",
+        "West"
+      )
+    ),
+    
+    employment_group = factor(
+      employment_group,
+      levels = c(
+        "Employed",
+        "Unemployed",
+        "Not in labor force"
+      )
+    )
+  )
+
+################################################################################
+############          CHECK REFERENCE CATEGORIES                       ############
+################################################################################
+
+levels(submersion$income_group)
+
+levels(submersion$home_ownership)
+
+levels(submersion$region_group)
+
+levels(submersion$employment_group)
+
+
+############              Income Model
+
+income_data <- submersion %>%
+  select(
+    information_status,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education,
+    pid3_model,
+    income_group
+  ) %>%
+  na.omit()
+
+
+# Sample size
+
+nrow(income_data)
+
+
+# Baseline model using the income-complete sample
+
+income_base_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = income_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+# Model adding family income
+
+income_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model +
+    income_group,
+  
+  data = income_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+# Results
+
+summary(income_model)
+
+
+# Compare model fit on the same respondents
+
+AIC(income_base_model)
+
+AIC(income_model)
+
+############              Homeownership Model
+
+home_data <- submersion %>%
+  select(
+    information_status,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education,
+    pid3_model,
+    home_ownership
+  ) %>%
+  na.omit()
+
+
+nrow(home_data)
+
+
+home_base_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = home_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+homeownership_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model +
+    home_ownership,
+  
+  data = home_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(homeownership_model)
+
+AIC(home_base_model)
+
+AIC(homeownership_model)
+
+############              Region Model
+
+################################################################################
+############          REGION MODEL                                  ############
+################################################################################
+
+region_data <- submersion %>%
+  select(
+    information_status,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education,
+    pid3_model,
+    region_group
+  ) %>%
+  na.omit()
+
+
+nrow(region_data)
+
+
+region_base_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = region_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+region_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model +
+    region_group,
+  
+  data = region_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(region_model)
+
+AIC(region_base_model)
+
+AIC(region_model)
+
+############              Employment Model
+
+employment_data <- submersion %>%
+  select(
+    information_status,
+    social_media_engagement,
+    listened_radio_news,
+    gender,
+    race_group,
+    education,
+    pid3_model,
+    employment_group
+  ) %>%
+  na.omit()
+
+
+nrow(employment_data)
+
+
+employment_base_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model,
+  
+  data = employment_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+employment_model <- multinom(
+  information_status ~
+    social_media_engagement +
+    listened_radio_news +
+    gender +
+    race_group +
+    education +
+    pid3_model +
+    employment_group,
+  
+  data = employment_data,
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(employment_model)
+
+AIC(employment_base_model)
+
+AIC(employment_model)
+
+
+################################################################################
+############          CALCULATE RRRs AND P-VALUES                     ############
+################################################################################
+
+
+############              INCOME MODEL                               ############
+
+income_coef <- summary(income_model)$coefficients
+income_se <- summary(income_model)$standard.errors
+
+income_RRR <- exp(income_coef)
+
+income_p <- 2 * (1 - pnorm(abs(income_coef / income_se)))
+
+
+############              HOMEOWNERSHIP MODEL                         ############
+
+home_coef <- summary(homeownership_model)$coefficients
+home_se <- summary(homeownership_model)$standard.errors
+
+home_RRR <- exp(home_coef)
+
+home_p <- 2 * (1 - pnorm(abs(home_coef / home_se)))
+
+
+############              REGION MODEL                               ############
+
+region_coef <- summary(region_model)$coefficients
+region_se <- summary(region_model)$standard.errors
+
+region_RRR <- exp(region_coef)
+
+region_p <- 2 * (1 - pnorm(abs(region_coef / region_se)))
+
+
+############              EMPLOYMENT MODEL                           ############
+
+employment_coef <- summary(employment_model)$coefficients
+employment_se <- summary(employment_model)$standard.errors
+
+employment_RRR <- exp(employment_coef)
+
+employment_p <- 2 * (1 - pnorm(abs(employment_coef / employment_se)))
+
+################################################################################
+############          COMPARE MAIN PREDICTORS                         ############
+################################################################################
+
+main_results <- data.frame(
+  
+  Added_variable = c(
+    "Income", "Income",
+    "Homeownership", "Homeownership",
+    "Region", "Region",
+    "Employment", "Employment"
+  ),
+  
+  Comparison = c(
+    "Social media: Informed vs Uninformed",
+    "Radio: Misinformed vs Uninformed",
+    "Social media: Informed vs Uninformed",
+    "Radio: Misinformed vs Uninformed",
+    "Social media: Informed vs Uninformed",
+    "Radio: Misinformed vs Uninformed",
+    "Social media: Informed vs Uninformed",
+    "Radio: Misinformed vs Uninformed"
+  ),
+  
+  RRR = c(
+    income_RRR["Informed", "social_media_engagement"],
+    income_RRR["Misinformed", "listened_radio_news"],
+    
+    home_RRR["Informed", "social_media_engagement"],
+    home_RRR["Misinformed", "listened_radio_news"],
+    
+    region_RRR["Informed", "social_media_engagement"],
+    region_RRR["Misinformed", "listened_radio_news"],
+    
+    employment_RRR["Informed", "social_media_engagement"],
+    employment_RRR["Misinformed", "listened_radio_news"]
+  ),
+  
+  p_value = c(
+    income_p["Informed", "social_media_engagement"],
+    income_p["Misinformed", "listened_radio_news"],
+    
+    home_p["Informed", "social_media_engagement"],
+    home_p["Misinformed", "listened_radio_news"],
+    
+    region_p["Informed", "social_media_engagement"],
+    region_p["Misinformed", "listened_radio_news"],
+    
+    employment_p["Informed", "social_media_engagement"],
+    employment_p["Misinformed", "listened_radio_news"]
+  )
+)
+
+
+main_results$RRR <- round(main_results$RRR, 3)
+
+main_results$p_value <- round(main_results$p_value, 4)
+
+main_results
+

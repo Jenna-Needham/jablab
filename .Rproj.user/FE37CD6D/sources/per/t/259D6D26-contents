@@ -1,0 +1,1905 @@
+####################################################################################
+############                    SETUP                                   ############
+####################################################################################
+
+install.packages("janitor")
+install.packages("nnet")
+install.packages("brms")
+
+library(dplyr)
+library(janitor)
+library(nnet)
+library(brms)
+
+# IMPORTANT:
+# This script assumes your original CCES/KACS dataset is already loaded as:
+#
+# data
+#
+# Do not start from an already-modified version of data if possible.
+# Ideally, reload the original dataset before running this script.
+
+# Load data
+data <- read_delim("ces_2024_vehicle_submersion.csv", show_col_types = FALSE)
+
+
+####################################################################################
+############       PHASE 1: CHECK ORIGINAL SURVEY VARIABLES             ############
+####################################################################################
+
+# Before recoding anything, inspect the original variables.
+
+# ------------------------------------------------------------------------------
+# CONFIDENCE
+# ------------------------------------------------------------------------------
+
+table(data$CNJ201, useNA = "ifany")
+
+
+# ------------------------------------------------------------------------------
+# KNOWLEDGE / COMPETENCE QUESTIONS
+# ------------------------------------------------------------------------------
+
+table(data$CNJ202, useNA = "ifany")
+table(data$CNJ203, useNA = "ifany")
+table(data$CNJ204, useNA = "ifany")
+
+
+# ------------------------------------------------------------------------------
+# DEMOGRAPHICS
+# ------------------------------------------------------------------------------
+
+table(data$gender4, useNA = "ifany")
+table(data$race, useNA = "ifany")
+table(data$educ, useNA = "ifany")
+table(data$pid3, useNA = "ifany")
+
+
+# ------------------------------------------------------------------------------
+# MEDIA VARIABLES
+# ------------------------------------------------------------------------------
+
+table(data$CC24_300_1, useNA = "ifany")
+table(data$CC24_300_2, useNA = "ifany")
+table(data$CC24_300_3, useNA = "ifany")
+table(data$CC24_300_4, useNA = "ifany")
+table(data$CC24_300_5, useNA = "ifany")
+
+table(data$CC24_300d_1, useNA = "ifany")
+table(data$CC24_300d_2, useNA = "ifany")
+table(data$CC24_300d_3, useNA = "ifany")
+table(data$CC24_300d_4, useNA = "ifany")
+table(data$CC24_300d_5, useNA = "ifany")
+table(data$CC24_300d_6, useNA = "ifany")
+
+
+####################################################################################
+############             PHASE 2: CONFIDENCE VARIABLES                  ############
+####################################################################################
+
+data <- data %>%
+  mutate(
+    
+    # Individual confidence categories
+    not_confident = ifelse(CNJ201 == 1, 1, 0),
+    somewhat_confident = ifelse(CNJ201 == 2, 1, 0),
+    mid_confident = ifelse(CNJ201 == 3, 1, 0),
+    very_confident = ifelse(CNJ201 == 4, 1, 0),
+    complete_confident = ifelse(CNJ201 == 5, 1, 0),
+    conf_dont_know = ifelse(CNJ201 == 998, 1, 0),
+    
+    
+    # Three-category version
+    confidence_group = case_when(
+      CNJ201 %in% c(1, 2) ~ "Not confident at all",
+      CNJ201 == 3 ~ "Unsure",
+      CNJ201 %in% c(4, 5) ~ "Confident",
+      TRUE ~ NA_character_
+    ),
+    
+    
+    # Binary version used for the 4-category typology
+    #
+    # 1, 2, 3 = Not confident
+    # 4, 5    = Confident
+    # 998 / missing = NA
+    
+    conf_binary = case_when(
+      CNJ201 %in% c(4, 5) ~ "Confident",
+      CNJ201 %in% c(1, 2, 3) ~ "Not confident",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK CONFIDENCE RECODING
+# ------------------------------------------------------------------------------
+
+table(data$CNJ201, data$confidence_group, useNA = "ifany")
+table(data$CNJ201, data$conf_binary, useNA = "ifany")
+
+table(data$confidence_group, useNA = "ifany")
+table(data$conf_binary, useNA = "ifany")
+
+
+####################################################################################
+############          PHASE 3: KNOWLEDGE RESPONSE LABELS                ############
+####################################################################################
+
+data <- data %>%
+  mutate(
+    
+    # CNJ202: Escape plan
+    
+    plan_escape = case_when(
+      CNJ202 == 1 ~ "Window ASAP",
+      CNJ202 == 2 ~ "Door ASAP",
+      CNJ202 == 3 ~ "Window wait",
+      CNJ202 == 4 ~ "Door wait",
+      CNJ202 == 9 ~ "Don't know",
+      TRUE ~ NA_character_
+    ),
+    
+    
+    # CNJ203: Time available
+    
+    time_escape = case_when(
+      CNJ203 == 1 ~ "Less than 1 minute",
+      CNJ203 == 2 ~ "1 minute",
+      CNJ203 == 3 ~ "2-5 minutes",
+      CNJ203 == 4 ~ "6-10 minutes",
+      CNJ203 == 5 ~ "More than 10 minutes",
+      CNJ203 == 9 ~ "Don't know",
+      TRUE ~ NA_character_
+    ),
+    
+    
+    # CNJ204: Who should exit first
+    
+    who_save = case_when(
+      CNJ204 == 1 ~ "Adult first",
+      CNJ204 == 2 ~ "Child first",
+      CNJ204 == 9 ~ "Don't know",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK RESPONSE LABELS
+# ------------------------------------------------------------------------------
+
+table(data$CNJ202, data$plan_escape, useNA = "ifany")
+table(data$CNJ203, data$time_escape, useNA = "ifany")
+table(data$CNJ204, data$who_save, useNA = "ifany")
+
+
+####################################################################################
+############              PHASE 4: CORRECT ANSWERS                      ############
+####################################################################################
+
+# IMPORTANT:
+#
+# Confirm these against the actual questionnaire / codebook BEFORE final analysis.
+#
+# Current assumed answer key:
+#
+# CNJ202:
+#   1 = Window ASAP = CORRECT
+#
+# CNJ203:
+#   1 = Less than 1 minute = CORRECT
+#   2 = 1 minute           = CORRECT
+#
+# CNJ204:
+#   2 = Child first = CORRECT
+#
+# If the questionnaire/codebook says otherwise, change the answer key here
+# BEFORE continuing.
+
+
+data <- data %>%
+  mutate(
+    
+    correct_CNJ202 = case_when(
+      CNJ202 == 1 ~ 1,
+      is.na(CNJ202) ~ NA_real_,
+      TRUE ~ 0
+    ),
+    
+    
+    correct_CNJ203 = case_when(
+      CNJ203 %in% c(1, 2) ~ 1,
+      is.na(CNJ203) ~ NA_real_,
+      TRUE ~ 0
+    ),
+    
+    
+    # ASSUMING CNJ204 = 2 means "Child first"
+    
+    correct_CNJ204 = case_when(
+      CNJ204 == 2 ~ 1,
+      is.na(CNJ204) ~ NA_real_,
+      TRUE ~ 0
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# VERY IMPORTANT CHECKS
+# ------------------------------------------------------------------------------
+
+# Each original response should map to the intended correct/incorrect value.
+
+table(data$CNJ202, data$correct_CNJ202, useNA = "ifany")
+
+table(data$CNJ203, data$correct_CNJ203, useNA = "ifany")
+
+table(data$CNJ204, data$correct_CNJ204, useNA = "ifany")
+
+
+# Check totals correct on each item
+
+table(data$correct_CNJ202, useNA = "ifany")
+table(data$correct_CNJ203, useNA = "ifany")
+table(data$correct_CNJ204, useNA = "ifany")
+
+
+####################################################################################
+############                PHASE 5: ALL CORRECT                        ############
+####################################################################################
+
+data <- data %>%
+  mutate(
+    
+    all_correct = case_when(
+      
+      # If any of the three survey questions is genuinely missing,
+      # all_correct should also be missing.
+      
+      is.na(correct_CNJ202) |
+        is.na(correct_CNJ203) |
+        is.na(correct_CNJ204) ~ NA_real_,
+      
+      
+      # Must answer ALL THREE correctly
+      
+      correct_CNJ202 == 1 &
+        correct_CNJ203 == 1 &
+        correct_CNJ204 == 1 ~ 1,
+      
+      
+      # Otherwise respondent missed at least one
+      
+      TRUE ~ 0
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK ALL_CORRECT
+# ------------------------------------------------------------------------------
+
+table(data$all_correct, useNA = "ifany")
+
+prop.table(
+  table(data$all_correct)
+)
+
+
+# See the combinations of correct/incorrect answers
+
+table(
+  data$correct_CNJ202,
+  data$correct_CNJ203,
+  data$correct_CNJ204,
+  useNA = "ifany"
+)
+
+
+# CRITICAL CHECK:
+# Anyone coded all_correct == 1 should ONLY have:
+#
+# CNJ202 = 1
+# CNJ203 = 1 or 2
+# CNJ204 = 2
+
+data %>%
+  filter(all_correct == 1) %>%
+  count(CNJ202, CNJ203, CNJ204)
+
+
+####################################################################################
+############       PHASE 6: CONFIDENCE-COMPETENCE TYPOLOGY             ############
+####################################################################################
+
+# Build the four-category measure DIRECTLY from conf_binary.
+#
+# This avoids using one definition of confidence in one place
+# and another definition somewhere else.
+
+
+data <- data %>%
+  mutate(
+    
+    conf_know_4 = case_when(
+      
+      conf_binary == "Confident" &
+        all_correct == 1 ~ "Confident and correct",
+      
+      conf_binary == "Confident" &
+        all_correct == 0 ~ "Confident but incorrect",
+      
+      conf_binary == "Not confident" &
+        all_correct == 1 ~ "Not confident but correct",
+      
+      conf_binary == "Not confident" &
+        all_correct == 0 ~ "Not confident and incorrect",
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK FOUR-CATEGORY TYPOLOGY
+# ------------------------------------------------------------------------------
+
+table(data$conf_know_4, useNA = "ifany")
+
+prop.table(
+  table(data$conf_know_4)
+)
+
+
+# Cross-check confidence and correctness manually
+
+table(
+  data$conf_binary,
+  data$all_correct,
+  useNA = "ifany"
+)
+
+
+# The resulting table should correspond exactly to:
+#
+# Confident + 1     = Confident and correct
+# Confident + 0     = Confident but incorrect
+# Not confident + 1 = Not confident but correct
+# Not confident + 0 = Not confident and incorrect
+
+
+table(
+  data$conf_binary,
+  data$conf_know_4,
+  useNA = "ifany"
+)
+
+
+####################################################################################
+############       PHASE 7: REGRESSION OUTCOME VARIABLE                 ############
+####################################################################################
+
+data <- data %>%
+  mutate(
+    
+    typology4 = case_when(
+      
+      conf_know_4 == "Confident and correct" ~
+        "Informed",
+      
+      conf_know_4 == "Confident but incorrect" ~
+        "Misinformed",
+      
+      conf_know_4 == "Not confident but correct" ~
+        "Underinformed",
+      
+      conf_know_4 == "Not confident and incorrect" ~
+        "Uninformed",
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# Set UNINFORMED as the reference category.
+
+data$typology4 <- factor(
+  data$typology4,
+  levels = c(
+    "Uninformed",
+    "Informed",
+    "Misinformed",
+    "Underinformed"
+  )
+)
+
+
+# ------------------------------------------------------------------------------
+# CHECK OUTCOME
+# ------------------------------------------------------------------------------
+
+table(data$typology4, useNA = "ifany")
+
+prop.table(
+  table(data$typology4)
+)
+
+levels(data$typology4)
+
+
+# First level MUST be:
+#
+# "Uninformed"
+
+
+####################################################################################
+############             PHASE 8: DEMOGRAPHIC CONTROLS                  ############
+####################################################################################
+
+
+# ------------------------------------------------------------------------------
+# GENDER
+# ------------------------------------------------------------------------------
+
+data <- data %>%
+  mutate(
+    
+    gender_model = case_when(
+      is.na(gender4) ~ NA_character_,
+      gender4 == "Man" ~ "Man",
+      gender4 == "Woman" ~ "Woman",
+      TRUE ~ "Other"
+    )
+  )
+
+
+data$gender_model <- factor(
+  data$gender_model,
+  levels = c(
+    "Man",
+    "Woman",
+    "Other"
+  )
+)
+
+
+# Check
+
+table(data$gender4, data$gender_model, useNA = "ifany")
+
+table(data$gender_model, useNA = "ifany")
+
+levels(data$gender_model)
+
+
+# Man should be first = reference category.
+
+
+# ------------------------------------------------------------------------------
+# RACE
+# ------------------------------------------------------------------------------
+
+data <- data %>%
+  mutate(
+    
+    race_model = case_when(
+      is.na(race) ~ NA_character_,
+      race == "White" ~ "White",
+      race == "Black" ~ "Black",
+      race == "Hispanic" ~ "Hispanic",
+      race == "Asian" ~ "Asian",
+      TRUE ~ "Other"
+    )
+  )
+
+
+data$race_model <- factor(
+  data$race_model,
+  levels = c(
+    "White",
+    "Black",
+    "Hispanic",
+    "Asian",
+    "Other"
+  )
+)
+
+
+# Check
+
+table(data$race, data$race_model, useNA = "ifany")
+
+table(data$race_model, useNA = "ifany")
+
+levels(data$race_model)
+
+
+# White should be first = reference category.
+
+
+# ------------------------------------------------------------------------------
+# EDUCATION
+# ------------------------------------------------------------------------------
+
+data <- data %>%
+  mutate(
+    
+    educ_model = case_when(
+      
+      educ %in% c(
+        "No HS",
+        "High school graduate"
+      ) ~ "High school or less",
+      
+      educ %in% c(
+        "Some college",
+        "2-year"
+      ) ~ "2 yr / partial college",
+      
+      educ %in% c(
+        "4-year",
+        "Post-grad"
+      ) ~ "College degree or higher",
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+
+data$educ_model <- factor(
+  data$educ_model,
+  levels = c(
+    "High school or less",
+    "2 yr / partial college",
+    "College degree or higher"
+  )
+)
+
+
+# Check
+
+table(data$educ, data$educ_model, useNA = "ifany")
+
+table(data$educ_model, useNA = "ifany")
+
+levels(data$educ_model)
+
+
+# High school or less should be first = reference category.
+
+
+# ------------------------------------------------------------------------------
+# PARTY ID
+# ------------------------------------------------------------------------------
+
+data <- data %>%
+  mutate(
+    
+    pid3_model = case_when(
+      pid3 == "Democrat" ~ "Democrat",
+      pid3 == "Republican" ~ "Republican",
+      pid3 == "Independent" ~ "Independent",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+data$pid3_model <- factor(
+  data$pid3_model,
+  levels = c(
+    "Democrat",
+    "Republican",
+    "Independent"
+  )
+)
+
+
+# Check
+
+table(data$pid3, data$pid3_model, useNA = "ifany")
+
+table(data$pid3_model, useNA = "ifany")
+
+levels(data$pid3_model)
+
+
+# Democrat should be first = reference category.
+
+
+####################################################################################
+############               PHASE 9: MEDIA VARIABLES                     ############
+####################################################################################
+
+
+# ------------------------------------------------------------------------------
+# PRIMARY MEDIA CHANNELS
+# ------------------------------------------------------------------------------
+
+data <- data %>%
+  mutate(
+    
+    yes_social_media = case_when(
+      CC24_300_1 == "selected" ~ 1,
+      CC24_300_1 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    watched_tv_news = case_when(
+      CC24_300_2 == "selected" ~ 1,
+      CC24_300_2 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    read_newspaper = case_when(
+      CC24_300_3 == "selected" ~ 1,
+      CC24_300_3 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    listened_radio_news = case_when(
+      CC24_300_4 == "selected" ~ 1,
+      CC24_300_4 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    none_media = case_when(
+      CC24_300_5 == "selected" ~ 1,
+      CC24_300_5 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK PRIMARY MEDIA VARIABLES
+# ------------------------------------------------------------------------------
+
+table(data$CC24_300_1, data$yes_social_media, useNA = "ifany")
+
+table(data$CC24_300_4, data$listened_radio_news, useNA = "ifany")
+
+
+table(data$yes_social_media, useNA = "ifany")
+table(data$watched_tv_news, useNA = "ifany")
+table(data$read_newspaper, useNA = "ifany")
+table(data$listened_radio_news, useNA = "ifany")
+table(data$none_media, useNA = "ifany")
+
+
+####################################################################################
+############        PHASE 10: SOCIAL MEDIA ENGAGEMENT ITEMS             ############
+####################################################################################
+
+data <- data %>%
+  mutate(
+    
+    posted_political_content = case_when(
+      CC24_300d_1 == "selected" ~ 1,
+      CC24_300d_1 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    commented_politics = case_when(
+      CC24_300d_2 == "selected" ~ 1,
+      CC24_300d_2 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    read_watched_political = case_when(
+      CC24_300d_3 == "selected" ~ 1,
+      CC24_300d_3 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    followed_political_event = case_when(
+      CC24_300d_4 == "selected" ~ 1,
+      CC24_300d_4 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    forwarded_political_content = case_when(
+      CC24_300d_5 == "selected" ~ 1,
+      CC24_300d_5 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    
+    none_political_social_media = case_when(
+      CC24_300d_6 == "selected" ~ 1,
+      CC24_300d_6 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK EACH SOCIAL-MEDIA ITEM
+# ------------------------------------------------------------------------------
+
+table(
+  data$CC24_300d_1,
+  data$posted_political_content,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300d_2,
+  data$commented_politics,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300d_3,
+  data$read_watched_political,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300d_4,
+  data$followed_political_event,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300d_5,
+  data$forwarded_political_content,
+  useNA = "ifany"
+)
+
+
+####################################################################################
+############        PHASE 11: CHECK SOCIAL-MEDIA SKIP PATTERN           ############
+####################################################################################
+
+# This is VERY IMPORTANT before creating the engagement index.
+#
+# We need to know who received the CC24_300d questions.
+#
+# In particular:
+# Did people who did NOT select social media on CC24_300_1
+# receive "not asked" on CC24_300d_1?
+
+
+table(
+  data$CC24_300_1,
+  data$CC24_300d_1,
+  useNA = "ifany"
+)
+
+
+# Also inspect all five engagement items by social-media use.
+
+table(
+  data$CC24_300_1,
+  data$CC24_300d_2,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300_1,
+  data$CC24_300d_3,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300_1,
+  data$CC24_300d_4,
+  useNA = "ifany"
+)
+
+table(
+  data$CC24_300_1,
+  data$CC24_300d_5,
+  useNA = "ifany"
+)
+
+
+####################################################################################
+############       PHASE 12: SOCIAL MEDIA ENGAGEMENT INDEX              ############
+####################################################################################
+
+# Do NOT automatically convert "not asked" into 0 unless the survey
+# documentation tells us that "not asked" truly means no engagement.
+#
+# For now, keep structurally unasked respondents as NA.
+
+
+data <- data %>%
+  mutate(
+    
+    social_media_engagement = case_when(
+      
+      # Preserve survey skip / not asked as missing
+      CC24_300d_1 == "not asked" ~ NA_real_,
+      
+      # Otherwise sum the five engagement behaviors
+      TRUE ~
+        posted_political_content +
+        commented_politics +
+        read_watched_political +
+        followed_political_event +
+        forwarded_political_content
+    ),
+    
+    
+    active_social_media = case_when(
+      
+      CC24_300d_1 == "not asked" ~ NA_real_,
+      
+      TRUE ~
+        posted_political_content +
+        commented_politics +
+        forwarded_political_content
+    ),
+    
+    
+    passive_social_media = case_when(
+      
+      CC24_300d_1 == "not asked" ~ NA_real_,
+      
+      TRUE ~
+        read_watched_political +
+        followed_political_event
+    )
+  )
+
+
+# ------------------------------------------------------------------------------
+# CHECK INDEX RANGE
+# ------------------------------------------------------------------------------
+
+table(data$social_media_engagement, useNA = "ifany")
+
+table(data$active_social_media, useNA = "ifany")
+
+table(data$passive_social_media, useNA = "ifany")
+
+
+# The overall index should only be:
+#
+# 0, 1, 2, 3, 4, 5, NA
+
+
+range(
+  data$social_media_engagement,
+  na.rm = TRUE
+)
+
+
+# Should return:
+#
+# 0 5
+
+
+# ------------------------------------------------------------------------------
+# CHECK MISSINGNESS OF COMPONENTS
+# ------------------------------------------------------------------------------
+
+data %>%
+  summarise(
+    
+    N_total = n(),
+    
+    missing_posted =
+      sum(is.na(posted_political_content)),
+    
+    missing_commented =
+      sum(is.na(commented_politics)),
+    
+    missing_read_watched =
+      sum(is.na(read_watched_political)),
+    
+    missing_followed =
+      sum(is.na(followed_political_event)),
+    
+    missing_forwarded =
+      sum(is.na(forwarded_political_content)),
+    
+    missing_engagement_index =
+      sum(is.na(social_media_engagement))
+  )
+
+
+####################################################################################
+############       PHASE 13: BASIC DIRECTIONAL CHECKS                   ############
+####################################################################################
+
+
+# ------------------------------------------------------------------------------
+# OUTCOME COUNTS
+# ------------------------------------------------------------------------------
+
+table(data$typology4, useNA = "ifany")
+
+
+# ------------------------------------------------------------------------------
+# SOCIAL MEDIA MEAN BY OUTCOME
+# ------------------------------------------------------------------------------
+
+social_media_means <- data %>%
+  filter(
+    !is.na(typology4),
+    !is.na(social_media_engagement)
+  ) %>%
+  group_by(typology4) %>%
+  summarise(
+    N = n(),
+    Mean_Engagement =
+      round(mean(social_media_engagement), 2),
+    SD_Engagement =
+      round(sd(social_media_engagement), 2)
+  )
+
+social_media_means
+
+
+# ------------------------------------------------------------------------------
+# SOCIAL MEDIA ENGAGEMENT LEVEL x TYPOLOGY
+# ------------------------------------------------------------------------------
+
+social_media_percent <- tabyl(
+  data,
+  social_media_engagement,
+  typology4
+)
+
+social_media_percent <- social_media_percent %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1)
+
+social_media_percent
+
+
+# ------------------------------------------------------------------------------
+# RADIO x TYPOLOGY
+# ------------------------------------------------------------------------------
+
+radio_percent <- tabyl(
+  data,
+  listened_radio_news,
+  typology4
+)
+
+radio_percent <- radio_percent %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1)
+
+radio_percent
+
+
+####################################################################################
+############       PHASE 14: SAMPLE ATTRITION CHECK                     ############
+####################################################################################
+
+# First check how many cases are available at each step.
+#
+# This helps identify which variable is causing cases to disappear.
+
+
+cat(
+  "\nTotal rows in original data:",
+  nrow(data),
+  "\n"
+)
+
+
+cat(
+  "Nonmissing typology:",
+  sum(!is.na(data$typology4)),
+  "\n"
+)
+
+
+cat(
+  "Typology + social media:",
+  sum(
+    complete.cases(
+      data[, c(
+        "typology4",
+        "social_media_engagement"
+      )]
+    )
+  ),
+  "\n"
+)
+
+
+cat(
+  "Typology + social media + radio:",
+  sum(
+    complete.cases(
+      data[, c(
+        "typology4",
+        "social_media_engagement",
+        "listened_radio_news"
+      )]
+    )
+  ),
+  "\n"
+)
+
+
+cat(
+  "+ gender:",
+  sum(
+    complete.cases(
+      data[, c(
+        "typology4",
+        "social_media_engagement",
+        "listened_radio_news",
+        "gender_model"
+      )]
+    )
+  ),
+  "\n"
+)
+
+
+cat(
+  "+ race:",
+  sum(
+    complete.cases(
+      data[, c(
+        "typology4",
+        "social_media_engagement",
+        "listened_radio_news",
+        "gender_model",
+        "race_model"
+      )]
+    )
+  ),
+  "\n"
+)
+
+
+cat(
+  "+ education:",
+  sum(
+    complete.cases(
+      data[, c(
+        "typology4",
+        "social_media_engagement",
+        "listened_radio_news",
+        "gender_model",
+        "race_model",
+        "educ_model"
+      )]
+    )
+  ),
+  "\n"
+)
+
+
+cat(
+  "+ party ID:",
+  sum(
+    complete.cases(
+      data[, c(
+        "typology4",
+        "social_media_engagement",
+        "listened_radio_news",
+        "gender_model",
+        "race_model",
+        "educ_model",
+        "pid3_model"
+      )]
+    )
+  ),
+  "\n"
+)
+
+
+####################################################################################
+############       PHASE 15: MODEL 1 FULL AVAILABLE SAMPLE              ############
+####################################################################################
+
+# This gives us Model 1 using everyone who has data for Model 1.
+#
+# Useful descriptively, but NOT the cleanest direct comparison with Model 2
+# because Model 2 may lose additional cases due to missing PID.
+
+
+model1_full_data <- data %>%
+  select(
+    typology4,
+    social_media_engagement,
+    listened_radio_news,
+    gender_model,
+    race_model,
+    educ_model
+  ) %>%
+  na.omit()
+
+
+cat(
+  "\nModel 1 full sample N:",
+  nrow(model1_full_data),
+  "\n"
+)
+
+
+table(model1_full_data$typology4)
+
+
+model1_full <- multinom(
+  
+  typology4 ~
+    social_media_engagement +
+    listened_radio_news +
+    gender_model +
+    race_model +
+    educ_model,
+  
+  data = model1_full_data,
+  
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model1_full)
+
+
+####################################################################################
+############       PHASE 16: COMMON MODEL 1 / MODEL 2 SAMPLE             ############
+####################################################################################
+
+# IMPORTANT:
+#
+# For the professor's sensitivity comparison, use ONE dataset containing
+# every variable required by Model 2.
+#
+# This means Model 1 and Model 2 contain the exact same respondents.
+#
+# The ONLY change between models is the addition of PID.
+
+
+regression_data <- data %>%
+  select(
+    typology4,
+    social_media_engagement,
+    listened_radio_news,
+    gender_model,
+    race_model,
+    educ_model,
+    pid3_model
+  ) %>%
+  na.omit()
+
+
+cat(
+  "\nCommon regression sample N:",
+  nrow(regression_data),
+  "\n"
+)
+
+
+# ------------------------------------------------------------------------------
+# CHECK OUTCOME DISTRIBUTION IN ACTUAL REGRESSION SAMPLE
+# ------------------------------------------------------------------------------
+
+table(regression_data$typology4)
+
+prop.table(
+  table(regression_data$typology4)
+)
+
+
+# ------------------------------------------------------------------------------
+# CHECK REFERENCES ONE MORE TIME
+# ------------------------------------------------------------------------------
+
+levels(regression_data$typology4)
+
+levels(regression_data$gender_model)
+
+levels(regression_data$race_model)
+
+levels(regression_data$educ_model)
+
+levels(regression_data$pid3_model)
+
+
+####################################################################################
+############       PHASE 17: DIRECTIONAL TABLES IN MODEL SAMPLE          ############
+####################################################################################
+
+# These are especially important.
+#
+# They tell us whether the original directional pattern still exists
+# among the exact respondents included in the regression.
+
+
+# ------------------------------------------------------------------------------
+# SOCIAL MEDIA
+# ------------------------------------------------------------------------------
+
+regression_social_means <- regression_data %>%
+  group_by(typology4) %>%
+  summarise(
+    N = n(),
+    Mean_Engagement =
+      round(mean(social_media_engagement), 2),
+    SD_Engagement =
+      round(sd(social_media_engagement), 2)
+  )
+
+regression_social_means
+
+
+regression_social_percent <- tabyl(
+  regression_data,
+  social_media_engagement,
+  typology4
+)
+
+regression_social_percent <- regression_social_percent %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1)
+
+regression_social_percent
+
+
+# ------------------------------------------------------------------------------
+# RADIO
+# ------------------------------------------------------------------------------
+
+regression_radio_percent <- tabyl(
+  regression_data,
+  listened_radio_news,
+  typology4
+)
+
+regression_radio_percent <- regression_radio_percent %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1)
+
+regression_radio_percent
+
+
+####################################################################################
+############       PHASE 18: MULTINOMIAL MODEL 1                        ############
+####################################################################################
+
+# Model 1:
+#
+# social media engagement
+# radio news
+# gender
+# race
+# education
+#
+# SAME SAMPLE as Model 2.
+
+
+model1 <- multinom(
+  
+  typology4 ~
+    social_media_engagement +
+    listened_radio_news +
+    gender_model +
+    race_model +
+    educ_model,
+  
+  data = regression_data,
+  
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model1)
+
+
+####################################################################################
+############       PHASE 19: MULTINOMIAL MODEL 2                        ############
+####################################################################################
+
+# Model 2:
+#
+# Model 1 +
+# party ID
+
+
+model2 <- multinom(
+  
+  typology4 ~
+    social_media_engagement +
+    listened_radio_news +
+    gender_model +
+    race_model +
+    educ_model +
+    pid3_model,
+  
+  data = regression_data,
+  
+  Hess = TRUE,
+  trace = FALSE
+)
+
+
+summary(model2)
+
+
+####################################################################################
+############       PHASE 20: VERIFY SAME MODEL SAMPLE                   ############
+####################################################################################
+
+# Both should have exactly the same N.
+
+nrow(regression_data)
+
+nobs(model2)
+
+nrow(regression_data)
+
+# Since both models use regression_data,
+# both models use the same sample size.
+
+# This should be TRUE.
+
+nobs(model1) == nobs(model2)
+
+
+####################################################################################
+############       PHASE 21: MODEL COEFFICIENTS AND STANDARD ERRORS     ############
+####################################################################################
+
+
+# ------------------------------------------------------------------------------
+# MODEL 1
+# ------------------------------------------------------------------------------
+
+model1_summary <- summary(model1)
+
+model1_coef <- model1_summary$coefficients
+
+model1_se <- model1_summary$standard.errors
+
+
+model1_coef
+
+model1_se
+
+
+# ------------------------------------------------------------------------------
+# MODEL 2
+# ------------------------------------------------------------------------------
+
+model2_summary <- summary(model2)
+
+model2_coef <- model2_summary$coefficients
+
+model2_se <- model2_summary$standard.errors
+
+
+model2_coef
+
+model2_se
+
+
+####################################################################################
+############       PHASE 22: Z-SCORES AND P-VALUES                      ############
+####################################################################################
+
+
+# ------------------------------------------------------------------------------
+# MODEL 1
+# ------------------------------------------------------------------------------
+
+model1_z <- model1_coef / model1_se
+
+model1_p <- 2 * (
+  1 - pnorm(abs(model1_z))
+)
+
+
+model1_z
+
+model1_p
+
+
+# ------------------------------------------------------------------------------
+# MODEL 2
+# ------------------------------------------------------------------------------
+
+model2_z <- model2_coef / model2_se
+
+model2_p <- 2 * (
+  1 - pnorm(abs(model2_z))
+)
+
+
+model2_z
+
+model2_p
+
+
+####################################################################################
+############       PHASE 23: RELATIVE RISK RATIOS                       ############
+####################################################################################
+
+# Exponentiating multinomial coefficients gives relative risk ratios (RRRs).
+
+
+model1_RRR <- exp(model1_coef)
+
+model2_RRR <- exp(model2_coef)
+
+
+model1_RRR
+
+model2_RRR
+
+
+####################################################################################
+############       PHASE 24: 95% CONFIDENCE INTERVALS FOR RRR           ############
+####################################################################################
+
+
+# ------------------------------------------------------------------------------
+# MODEL 1
+# ------------------------------------------------------------------------------
+
+model1_lower <- exp(
+  model1_coef - 1.96 * model1_se
+)
+
+model1_upper <- exp(
+  model1_coef + 1.96 * model1_se
+)
+
+
+# ------------------------------------------------------------------------------
+# MODEL 2
+# ------------------------------------------------------------------------------
+
+model2_lower <- exp(
+  model2_coef - 1.96 * model2_se
+)
+
+model2_upper <- exp(
+  model2_coef + 1.96 * model2_se
+)
+
+
+####################################################################################
+############       PHASE 25: FOCUS ON PRIMARY PREDICTORS                ############
+####################################################################################
+
+# These are the two variables the professor specifically asked about.
+
+
+# ------------------------------------------------------------------------------
+# MODEL 1
+# ------------------------------------------------------------------------------
+
+model1_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model1_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+
+# ------------------------------------------------------------------------------
+# MODEL 2
+# ------------------------------------------------------------------------------
+
+model2_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+
+####################################################################################
+############       PHASE 26: FOCUS ON MISINFORMED VS UNINFORMED        ############
+####################################################################################
+
+# This is arguably the most substantively important comparison based on
+# your professor's description:
+#
+# "how media exposure increases the odds of being misinformed
+# relative to ignorance"
+#
+# Since Uninformed is the reference outcome, use the "Misinformed" row.
+
+
+# MODEL 1
+
+model1_RRR[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+model1_p[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+# MODEL 2
+
+model2_RRR[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+model2_p[
+  "Misinformed",
+  c(
+    "social_media_engagement",
+    "listened_radio_news"
+  )
+]
+
+
+####################################################################################
+############       PHASE 27: CHECK PARTY ID EFFECT                      ############
+####################################################################################
+
+# Model 2 only.
+#
+# Democrat is the reference category.
+
+
+model2_RRR[, c(
+  "pid3_modelRepublican",
+  "pid3_modelIndependent"
+)]
+
+model2_p[, c(
+  "pid3_modelRepublican",
+  "pid3_modelIndependent"
+)]
+
+
+####################################################################################
+############       PHASE 28: COMPARE MODEL FIT                          ############
+####################################################################################
+
+AIC(model1)
+
+AIC(model2)
+
+
+# Because these models use the SAME respondents, comparing their AICs
+# is meaningful.
+#
+# Lower AIC = better relative fit.
+
+
+####################################################################################
+############       PHASE 29: FINAL SANITY CHECK                         ############
+####################################################################################
+
+cat(
+  "\n\n================ FINAL MODEL CHECK ================\n"
+)
+
+cat(
+  "\nRegression sample N:",
+  nrow(regression_data),
+  "\n"
+)
+
+cat(
+  "\nModel 1 N:",
+  nrow(model.frame(model1)),
+  "\n"
+)
+
+cat(
+  "Model 2 N:",
+  nrow(model.frame(model2)),
+  "\n"
+)
+
+cat(
+  "\nSame sample size:",
+  nrow(model.frame(model1)) ==
+    nrow(model.frame(model2)),
+  "\n"
+)
+
+cat(
+  "\nOutcome categories:\n"
+)
+
+print(
+  table(regression_data$typology4)
+)
+
+cat(
+  "\nOutcome reference category:",
+  levels(regression_data$typology4)[1],
+  "\n"
+)
+
+cat(
+  "Gender reference category:",
+  levels(regression_data$gender_model)[1],
+  "\n"
+)
+
+cat(
+  "Race reference category:",
+  levels(regression_data$race_model)[1],
+  "\n"
+)
+
+cat(
+  "Education reference category:",
+  levels(regression_data$educ_model)[1],
+  "\n"
+)
+
+cat(
+  "Party reference category:",
+  levels(regression_data$pid3_model)[1],
+  "\n"
+)
+
+cat(
+  "\nSocial-media engagement range:\n"
+)
+
+print(
+  range(regression_data$social_media_engagement)
+)
+
+cat(
+  "\nRadio distribution:\n"
+)
+
+print(
+  table(regression_data$listened_radio_news)
+)
+
+cat(
+  "\n===================================================\n"
+)
+
+####################################################################################
+############       CHECK SPARSE CELLS / SEPARATION                      ############
+####################################################################################
+
+# Gender by outcome
+
+table(
+  regression_data$gender_model,
+  regression_data$typology4
+)
+
+
+# Race by outcome
+
+table(
+  regression_data$race_model,
+  regression_data$typology4
+)
+
+
+# Education by outcome
+
+table(
+  regression_data$educ_model,
+  regression_data$typology4
+)
+
+
+# Party ID by outcome
+
+table(
+  regression_data$pid3_model,
+  regression_data$typology4
+)
+
+prop.table(
+  table(
+    regression_data$gender_model,
+    regression_data$typology4
+  ),
+  margin = 1
+)
+
+prop.table(
+  table(
+    regression_data$race_model,
+    regression_data$typology4
+  ),
+  margin = 1
+)
+
+table(regression_data$gender_model,
+      regression_data$typology4)
+
+table(regression_data$race_model,
+      regression_data$typology4)
+
+table(regression_data$educ_model,
+      regression_data$typology4)
+
+table(regression_data$pid3_model,
+      regression_data$typology4)
+
+####################################################################################
+############   PHASE 30: BIAS-REDUCED MULTINOMIAL SENSITIVITY CHECK    ############
+####################################################################################
+
+# Install brglm2 once if you do not already have it:
+#
+# install.packages("brglm2")
+
+library(brglm2)
+
+
+# ------------------------------------------------------------------------------
+# WHY ARE WE DOING THIS?
+# ------------------------------------------------------------------------------
+
+# The ordinary multinomial model showed evidence of separation.
+#
+# Examples:
+#
+# - No "Other" gender respondents were Informed.
+# - No Black respondents were Informed.
+# - No Asian respondents were Informed.
+# - No respondents in the "Other" race category were Informed.
+#
+# These zero cells can cause ordinary maximum-likelihood estimates from
+# multinom() to become extremely large or small and make standard errors
+# and p-values unreliable.
+#
+# brmultinom() uses bias-reduced estimation, which is designed to produce
+# finite estimates even when separation occurs.
+
+
+####################################################################################
+############              BIAS-REDUCED MODEL 1                          ############
+####################################################################################
+
+br_model1 <- brmultinom(
+  
+  typology4 ~
+    social_media_engagement +
+    listened_radio_news +
+    gender_model +
+    race_model +
+    educ_model,
+  
+  data = regression_data,
+  
+  ref = "Uninformed",
+  
+  type = "AS_mean"
+)
+
+
+summary(br_model1)
+
+
+####################################################################################
+############              BIAS-REDUCED MODEL 2                          ############
+####################################################################################
+
+br_model2 <- brmultinom(
+  
+  typology4 ~
+    social_media_engagement +
+    listened_radio_news +
+    gender_model +
+    race_model +
+    educ_model +
+    pid3_model,
+  
+  data = regression_data,
+  
+  ref = "Uninformed",
+  
+  type = "AS_mean"
+)
+
+
+summary(br_model2)
+
+
+
+nrow(regression_data)
+
+table(regression_data$information_status)
+
+round(
+  prop.table(
+    table(regression_data$information_status)
+  ) * 100,
+  1
+)
+
+summary(model1)
+summary(model2)
+
+model1_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model1_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_RRR[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_p[, c(
+  "social_media_engagement",
+  "listened_radio_news"
+)]
+
+model2_RRR[, c(
+  "pid3_modelRepublican",
+  "pid3_modelIndependent"
+)]
+
+model2_p[, c(
+  "pid3_modelRepublican",
+  "pid3_modelIndependent"
+)]
+
+AIC(model1)
+AIC(model2)
+
+table(
+  regression_data$listened_radio_news,
+  regression_data$information_status
+)
+
+round(
+  prop.table(
+    table(
+      regression_data$listened_radio_news,
+      regression_data$information_status
+    ),
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+regression_data %>%
+  group_by(information_status) %>%
+  summarise(
+    n = n(),
+    mean_social_media = mean(social_media_engagement),
+    sd_social_media = sd(social_media_engagement)
+  )

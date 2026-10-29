@@ -1,0 +1,26 @@
+{
+    "id": "D33F8E6C",
+    "path": "~/sta220/jablab/script/01_import.R",
+    "project_path": "script/01_import.R",
+    "type": "r_source",
+    "hash": "3720205633",
+    "contents": "",
+    "dirty": false,
+    "created": 1793258705196.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "11,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1793262346,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1793262346280,
+    "read_only": false,
+    "read_only_alternatives": []
+}
