@@ -1,24 +1,26 @@
 {
-    "id": "5524556C",
-    "path": "~/sta220/sta220-dashboard_marlton/data/acs_2024_nj_demographic_housing.csv",
+    "id": "711D06A0",
+    "path": "~/jablab/work/regression_new.R",
     "project_path": null,
-    "type": "text",
-    "hash": "2051879246",
+    "type": "r_source",
+    "hash": "284859363",
     "contents": "",
     "dirty": false,
-    "created": 1793294804100.0,
+    "created": 1793862251210.0,
     "source_on_save": false,
     "relative_order": 2,
     "properties": {
         "source_window_id": "",
-        "Source": "Source"
+        "Source": "Source",
+        "cursorPosition": "1615,0",
+        "scrollLine": "677"
     },
     "folds": "",
-    "lastKnownWriteTime": 1793295000,
+    "lastKnownWriteTime": 1792883223,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1793295000,
+    "last_content_update": 1792883223,
     "read_only": false,
     "read_only_alternatives": []
 }

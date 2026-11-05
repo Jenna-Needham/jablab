@@ -1,0 +1,123 @@
+
+################################################################################
+############                  COMPLETE CASES                           #########
+################################################################################
+
+# This script creates the complete-case dataset used for Tables 2 and 4.
+#
+# Both tables examine confidence/information status by:
+# Gender, race, and education.
+#
+# Both tables use the same respondents.
+#
+# Other gender responses are excluded, consistent with the original tables.
+# The Other race category is retained.
+
+
+################################################################################
+############          COMMON SAMPLE FOR TABLES 2 AND 4                 ##########
+################################################################################
+
+# STEP 1: Examine the variables required for the analyses
+
+table(submersion$gender, useNA = "ifany")
+
+table(submersion$confidence, useNA = "ifany")
+
+table(submersion$information_status, useNA = "ifany")
+
+table(submersion$race_group, useNA = "ifany")
+
+table(submersion$education, useNA = "ifany")
+
+
+# STEP 2: Create the common sample
+
+table2_table4_data <- submersion %>%
+  filter(
+    gender %in% c("Man", "Woman"),
+    !is.na(confidence),
+    !is.na(information_status),
+    !is.na(race_group),
+    !is.na(education)
+  ) %>%
+  select(
+    gender,
+    race_group,
+    education,
+    confidence,
+    confidence_score,
+    confidence_group,
+    knowledge_score,
+    all_correct,
+    information_status
+  )
+
+
+################################################################################
+############          TABLE 2: CONFIDENCE SAMPLES                      ##########
+################################################################################
+
+# Create the gender, race, and education samples from the common dataset.
+
+gender_confidence <- table2_table4_data %>%
+  select(gender, confidence)
+
+race_confidence <- table2_table4_data %>%
+  select(race_group, confidence)
+
+education_confidence <- table2_table4_data %>%
+  select(education, confidence)
+
+
+################################################################################
+############          TABLE 4: INFORMATION STATUS SAMPLES              ##########
+################################################################################
+
+# Create the gender, race, and education samples from the same dataset.
+
+table4_data <- table2_table4_data %>%
+  select(
+    gender,
+    race_group,
+    education,
+    information_status
+  )
+
+race_status <- table4_data %>%
+  select(race_group, information_status)
+
+education_status <- table4_data %>%
+  select(education, information_status)
+
+
+################################################################################
+############                FINAL SAMPLE SIZE CHECK                   ##########
+################################################################################
+
+# Original survey sample
+
+nrow(submersion)
+
+
+# Common sample for Tables 2 and 4
+
+nrow(table2_table4_data)
+
+
+# Table 2 samples
+
+nrow(gender_confidence)
+
+nrow(race_confidence)
+
+nrow(education_confidence)
+
+
+# Table 4 samples
+
+nrow(table4_data)
+
+nrow(race_status)
+
+nrow(education_status)

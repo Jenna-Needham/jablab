@@ -1,0 +1,26 @@
+{
+    "id": "2DCCC8BE",
+    "path": "~/jablab git/jablab/script/03_complete_case.R",
+    "project_path": null,
+    "type": "r_source",
+    "hash": "2484328241",
+    "contents": "",
+    "dirty": false,
+    "created": 1793868139600.0,
+    "source_on_save": false,
+    "relative_order": 6,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "123,0",
+        "scrollLine": "96"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1793869988,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1793869988911,
+    "read_only": false,
+    "read_only_alternatives": []
+}

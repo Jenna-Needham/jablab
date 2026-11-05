@@ -19,14 +19,23 @@
 
 ############                       Confidence                  ############
 
-# STEP 1: Examine variable and coding schema
+# STEP 1: Examine the original confidence responses
 
 table(submersion$CNJ201, useNA = "ifany")
 
-# STEP 2: Create three-category confidence variable
+
+# STEP 2: Create confidence variables
 
 submersion <- submersion %>%
   mutate(
+    
+    # Preserve the original five-point confidence scale
+    confidence_score = case_when(
+      CNJ201 %in% 1:5 ~ as.numeric(CNJ201),
+      TRUE ~ NA_real_
+    ),
+    
+    # Three categories: not confident, unsure, and confident
     confidence_group = case_when(
       CNJ201 %in% c(1, 2) ~ "Not confident",
       CNJ201 == 3 ~ "Unsure",
@@ -34,20 +43,28 @@ submersion <- submersion %>%
       TRUE ~ NA_character_
     ),
     
+    # Binary version used for the information-status typology.
+    # "Not confident" includes respondents who answered "Unsure."
     confidence = case_when(
-      CNJ201 %in% c(4, 5) ~ "Confident",
       CNJ201 %in% c(1, 2, 3) ~ "Not confident",
+      CNJ201 %in% c(4, 5) ~ "Confident",
       TRUE ~ NA_character_
     )
   )
 
+
 # STEP 3: Confirm creation
 
+table(submersion$confidence_score, useNA = "ifany")
+
 table(submersion$confidence_group, useNA = "ifany")
+
 table(submersion$CNJ201, submersion$confidence_group, useNA = "ifany")
 
 table(submersion$confidence, useNA = "ifany")
+
 table(submersion$CNJ201, submersion$confidence, useNA = "ifany")
+
 
 ############                       Knowledge/Competence                  ############
 
@@ -59,6 +76,12 @@ table(submersion$CNJ204, useNA = "ifany")
 
 
 # STEP 2: Create readable versions of each response
+# "Don't know" is treated as an incorrect answer (0).
+# Missing or unrecognized responses remain missing (NA).
+# Correct answers:
+# CNJ202 = Window ASAP
+# CNJ203 = Less than 1 minute OR 1 minute
+# CNJ204 = Child first
 
 submersion <- submersion %>%
   mutate(
@@ -128,25 +151,6 @@ submersion <- submersion %>%
     )
   )
 
-# A respondent is coded as all_correct = 1 only if all three
-# knowledge questions were answered correctly.
-
-submersion <- submersion %>%
-  mutate(
-    all_correct = case_when(
-      
-      is.na(correct_CNJ202) |
-        is.na(correct_CNJ203) |
-        is.na(correct_CNJ204) ~ NA_real_,
-      
-      correct_CNJ202 == 1 &
-        correct_CNJ203 == 1 &
-        correct_CNJ204 == 1 ~ 1,
-      
-      TRUE ~ 0
-    )
-  )
-
 # Confirm creation
 
 table(submersion$correct_CNJ202, useNA = "ifany")
@@ -158,11 +162,38 @@ table(submersion$CNJ203, submersion$correct_CNJ203, useNA = "ifany")
 table(submersion$correct_CNJ204, useNA = "ifany")
 table(submersion$CNJ204, submersion$correct_CNJ204, useNA = "ifany")
 
-table(submersion$all_correct, useNA = "ifany")
+############                       Knowledge Score                    ############
 
-table(submersion$correct_CNJ202, submersion$all_correct, useNA = "ifany")
-table(submersion$correct_CNJ203, submersion$all_correct, useNA = "ifany")
-table(submersion$correct_CNJ204, submersion$all_correct, useNA = "ifany")
+# Count the number of knowledge questions answered correctly.
+# Possible scores range from 0 to 3.
+
+submersion <- submersion %>%
+  mutate(
+    knowledge_score =
+      correct_CNJ202 +
+      correct_CNJ203 +
+      correct_CNJ204
+  )
+
+# Check the distribution of knowledge scores
+
+table(submersion$knowledge_score, useNA = "ifany")
+
+# A respondent receives all_correct = 1 if all three
+# knowledge questions were answered correctly.
+
+submersion <- submersion %>%
+  mutate(
+    all_correct = case_when(
+      knowledge_score == 3 ~ 1,
+      !is.na(knowledge_score) ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Confirm creation
+
+table(submersion$all_correct, useNA = "ifany")
 
 ############                       Confidence + Knowledge Typology                 ############
 
@@ -219,13 +250,18 @@ submersion <- submersion %>%
     )
   )
 
+# Confirm creation
+
+table(submersion$confidence_knowledge, useNA = "ifany")
 
 ############              Misinformed/Uninformed/Underinformed/Informed STATUS   ############
 
-
-# Classify respondents based on their confidence and knowledge.
-# confidence = whether the respondent is confident
-# all_correct = whether all three knowledge questions were answered correctly
+# Classify respondents based on confidence and knowledge.
+#
+# Informed = Confident and all three questions correct
+# Misinformed = Confident but not all three questions correct
+# Underinformed = Not confident but all three questions correct
+# Uninformed = Not confident and not all three questions correct
 
 submersion <- submersion %>%
   mutate(
@@ -246,6 +282,19 @@ table(submersion$confidence, submersion$information_status, useNA = "ifany")
 table(submersion$all_correct, submersion$information_status, useNA = "ifany")
 
 
+submersion <- submersion %>%
+  mutate(
+    high_risk = case_when(
+      information_status == "Misinformed" ~ 1,
+      is.na(information_status) ~ NA_real_,
+      TRUE ~ 0
+    )
+  )
+
+# Make a variable specifically for the misinformed group (when confidence is high but respondent is incorrect) 
+
+table(submersion$high_risk, useNA = "ifany")
+table(submersion$confidence, submersion$high_risk, useNA = "ifany")
 
 ############                   DEMOGRAPHICS                        ############
 
@@ -310,6 +359,9 @@ table(submersion$educ, useNA = "ifany")
 
 submersion <- submersion %>%
   mutate(
+    
+    # Three-category education variable (this variable is used in the analysis)
+    
     education = case_when(
       educ %in% c("No HS", "High school graduate") ~
         "High school or less",
@@ -321,13 +373,30 @@ submersion <- submersion %>%
         "College degree or higher",
       
       TRUE ~ NA_character_
+    ),
+    
+    # More detailed education categories
+    
+    education_detail = case_when(
+      educ == "No HS" ~ "No high school",
+      educ == "High school graduate" ~ "High school graduate",
+      educ == "Some college" ~ "Some college",
+      educ == "2-year" ~ "2-year degree",
+      educ == "4-year" ~ "4-year degree",
+      educ == "Post-grad" ~ "Post-graduate degree",
+      TRUE ~ NA_character_
     )
   )
 
 # STEP 3: Confirm creation
 
 table(submersion$education, useNA = "ifany")
+
 table(submersion$educ, submersion$education, useNA = "ifany")
+
+table(submersion$education_detail, useNA = "ifany")
+
+table(submersion$educ, submersion$education_detail, useNA = "ifany")
 
 ############                   Race                        ############
 
@@ -390,14 +459,9 @@ table(submersion$numchildren, submersion$children_group, useNA = "ifany")
 
 # STEP 1: Examine variable and coding schema
 
-table(submersion$parent_1, useNA = "ifany")
-table(submersion$parent_2, useNA = "ifany")
-table(submersion$parent_97, useNA = "ifany")
-
-# STEP 2: Create parent variables 
-
 submersion <- submersion %>%
   mutate(
+    
     child_under_18 = case_when(
       parent_1 == "selected" ~ 1,
       parent_1 == "not selected" ~ 0,
@@ -414,12 +478,8 @@ submersion <- submersion %>%
       parent_97 == "selected" ~ 1,
       parent_97 == "not selected" ~ 0,
       TRUE ~ NA_real_
-    )
-  )
-
-# Combine the three survey items into one parent/not-parent variable
-submersion <- submersion %>%
-  mutate(
+    ),
+    
     parent_status = case_when(
       not_parent == 1 ~ "Not a parent",
       child_under_18 == 1 | child_18_or_older == 1 ~ "Parent",
@@ -427,354 +487,44 @@ submersion <- submersion %>%
     )
   )
 
+
 # STEP 3: Confirm creation
 
 table(submersion$child_under_18, useNA = "ifany")
-table(submersion$parent_1, submersion$child_under_18, useNA = "ifany")
 
 table(submersion$child_18_or_older, useNA = "ifany")
-table(submersion$parent_2, submersion$child_18_or_older, useNA = "ifany")
 
 table(submersion$not_parent, useNA = "ifany")
-table(submersion$parent_97, submersion$not_parent, useNA = "ifany")
 
 table(submersion$parent_status, useNA = "ifany")
 
+
+# Compare original responses with the new parental status variable
+
 table(submersion$parent_1, submersion$parent_status, useNA = "ifany")
+
 table(submersion$parent_2, submersion$parent_status, useNA = "ifany")
+
 table(submersion$parent_97, submersion$parent_status, useNA = "ifany")
 
+################################################################################
+############              CREATE COMMON ANALYSIS SAMPLE                ##########
+################################################################################
 
-############                   MEDIA VARIABLES                      ############
+# Keep respondents with complete information for the main tables.
+# Other gender respondents are excluded to match the original
+# gender restriction in Tables 2 and 4.
 
-
-# These variables are specifically for Paper 2
-
-############                   Primary Media Channels                        ############
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$CC24_300_1, useNA = "ifany")
-table(submersion$CC24_300_2, useNA = "ifany")
-table(submersion$CC24_300_3, useNA = "ifany")
-table(submersion$CC24_300_4, useNA = "ifany")
-table(submersion$CC24_300_5, useNA = "ifany")
-
-# STEP 2: Create media variables 
-
-submersion <- submersion %>%
-  mutate(
-    
-    yes_social_media = case_when(
-      CC24_300_1 == "selected" ~ 1,
-      CC24_300_1 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    watched_tv_news = case_when(
-      CC24_300_2 == "selected" ~ 1,
-      CC24_300_2 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    read_newspaper = case_when(
-      CC24_300_3 == "selected" ~ 1,
-      CC24_300_3 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    listened_radio_news = case_when(
-      CC24_300_4 == "selected" ~ 1,
-      CC24_300_4 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    none_media = case_when(
-      CC24_300_5 == "selected" ~ 1,
-      CC24_300_5 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    )
+table_data <- submersion %>%
+  filter(
+    gender %in% c("Man", "Woman"),
+    !is.na(confidence_score),
+    !is.na(knowledge_score),
+    !is.na(gender),
+    !is.na(race_group),
+    !is.na(education_detail)
   )
 
+# Check the final sample size
 
-# STEP 3: Confirm creation
-
-table(submersion$yes_social_media, useNA = "ifany")
-table(submersion$watched_tv_news, useNA = "ifany")
-table(submersion$read_newspaper, useNA = "ifany")
-table(submersion$listened_radio_news, useNA = "ifany")
-table(submersion$none_media, useNA = "ifany")
-
-############                  Social Media Engagement                      ############
-
-# These questions ask about different types of political activity
-# on social media.
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$CC24_300d_1, useNA = "ifany")
-table(submersion$CC24_300d_2, useNA = "ifany")
-table(submersion$CC24_300d_3, useNA = "ifany")
-table(submersion$CC24_300d_4, useNA = "ifany")
-table(submersion$CC24_300d_5, useNA = "ifany")
-table(submersion$CC24_300d_6, useNA = "ifany")
-
-# STEP 2: Create social media variables 
-
-submersion <- submersion %>%
-  mutate(
-    
-    posted_political_content = case_when(
-      CC24_300d_1 == "selected" ~ 1,
-      CC24_300d_1 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    commented_politics = case_when(
-      CC24_300d_2 == "selected" ~ 1,
-      CC24_300d_2 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    read_watched_political = case_when(
-      CC24_300d_3 == "selected" ~ 1,
-      CC24_300d_3 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    followed_political_event = case_when(
-      CC24_300d_4 == "selected" ~ 1,
-      CC24_300d_4 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    forwarded_political_content = case_when(
-      CC24_300d_5 == "selected" ~ 1,
-      CC24_300d_5 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    ),
-    
-    none_political_social_media = case_when(
-      CC24_300d_6 == "selected" ~ 1,
-      CC24_300d_6 == "not selected" ~ 0,
-      TRUE ~ NA_real_
-    )
-  )
-
-# STEP 3: Confirm creation
-
-# STEP 3: Confirm creation
-
-table(submersion$posted_political_content, useNA = "ifany")
-table(submersion$CC24_300d_1, submersion$posted_political_content, useNA = "ifany")
-
-table(submersion$commented_politics, useNA = "ifany")
-table(submersion$CC24_300d_2, submersion$commented_politics, useNA = "ifany")
-
-table(submersion$read_watched_political, useNA = "ifany")
-table(submersion$CC24_300d_3, submersion$read_watched_political, useNA = "ifany")
-
-table(submersion$followed_political_event, useNA = "ifany")
-table(submersion$CC24_300d_4, submersion$followed_political_event, useNA = "ifany")
-
-table(submersion$forwarded_political_content, useNA = "ifany")
-table(submersion$CC24_300d_5, submersion$forwarded_political_content, useNA = "ifany")
-
-table(submersion$none_political_social_media, useNA = "ifany")
-table(submersion$CC24_300d_6, submersion$none_political_social_media, useNA = "ifany")
-
-############                  Social Media Engagement Index                      ############
-# Total engagement ranges from 0 to 5.
-#
-# Active engagement:
-# posting, commenting, or forwarding political content
-#
-# Passive engagement:
-# reading/watching political content or following political events
-
-submersion <- submersion %>%
-  mutate(
-    
-    social_media_engagement =
-      posted_political_content +
-      commented_politics +
-      read_watched_political +
-      followed_political_event +
-      forwarded_political_content,
-    
-    active_social_media =
-      posted_political_content +
-      commented_politics +
-      forwarded_political_content,
-    
-    passive_social_media =
-      read_watched_political +
-      followed_political_event
-  )
-
-# Confirm creation
-
-table(submersion$social_media_engagement, useNA = "ifany")
-table(submersion$active_social_media, useNA = "ifany")
-table(submersion$passive_social_media, useNA = "ifany")
-
-############                  Political Party                      ############
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$pid3, useNA = "ifany")
-
-# STEP 2: Create political party variables 
-
-submersion <- submersion %>%
-  mutate(
-    pid3_model = case_when(
-      pid3 == "Democrat" ~ "Democrat",
-      pid3 == "Republican" ~ "Republican",
-      pid3 == "Independent" ~ "Independent",
-      TRUE ~ NA_character_
-    )
-  )
-
-# STEP 3: Confirm creation
-
-table(submersion$pid3_model, useNA = "ifany")
-table(submersion$pid3, submersion$pid3_model, useNA = "ifany")
-
-
-############                  Family Income                     ############
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$faminc_new, useNA = "ifany")
-
-# STEP 2: Create income variables 
-
-submersion <- submersion %>%
-  mutate(
-    income_group = case_when(
-      
-      faminc_new %in% c(
-        "Less than $10,000",
-        "$10,000 - $19,999",
-        "$20,000 - $29,999",
-        "$30,000 - $39,999"
-      ) ~ "Under $40,000",
-      
-      faminc_new %in% c(
-        "$40,000 - $49,999",
-        "$50,000 - $59,999",
-        "$60,000 - $69,999",
-        "$70,000 - $79,999"
-      ) ~ "$40,000 to $79,999",
-      
-      faminc_new %in% c(
-        "$80,000 - $99,999",
-        "$100,000 - $119,999",
-        "$120,000 - $149,999"
-      ) ~ "$80,000 to $149,999",
-      
-      faminc_new %in% c(
-        "$150,000 - $199,999",
-        "$200,000 - $249,999",
-        "$250,000 - $349,999",
-        "$350,000 - $499,999",
-        "$500,000 or more"
-      ) ~ "$150,000 or more",
-      
-      faminc_new == "Prefer not to say" ~ NA_character_,
-      
-      TRUE ~ NA_character_
-    )
-  )
-
-# STEP 3: Confirm creation
-
-table(submersion$income_group, useNA = "ifany")
-table(submersion$faminc_new, submersion$income_group, useNA = "ifany")
-
-############                  Home Ownership                     ############
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$ownhome, useNA = "ifany")
-
-# STEP 2: Create home ownership variables 
-
-submersion <- submersion %>%
-  mutate(
-    home_ownership = case_when(
-      ownhome == "Own" ~ "Own",
-      ownhome == "Rent" ~ "Rent",
-      ownhome == "Other" ~ "Other",
-      TRUE ~ NA_character_
-    )
-  )
-
-# STEP 3: Confirm creation
-
-table(submersion$home_ownership, useNA = "ifany")
-table(submersion$ownhome, submersion$home_ownership, useNA = "ifany")
-
-############                  Region                     ############
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$region, useNA = "ifany")
-
-# STEP 2: Create region variables 
-
-submersion <- submersion %>%
-  mutate(
-    region_group = case_when(
-      region == "Northeast" ~ "Northeast",
-      region == "Midwest" ~ "Midwest",
-      region == "South" ~ "South",
-      region == "West" ~ "West",
-      TRUE ~ NA_character_
-    )
-  )
-
-# STEP 3: Confirm creation
-
-table(submersion$region_group, useNA = "ifany")
-table(submersion$region, submersion$region_group, useNA = "ifany")
-
-############                  Employment Status                     ############
-
-# STEP 1: Examine variable and coding schema
-
-table(submersion$employ, useNA = "ifany")
-
-# STEP 2: Create employment variables 
-
-submersion <- submersion %>%
-  mutate(
-    employment_group = case_when(
-      
-      employ %in% c(
-        "Full-time",
-        "Part-time"
-      ) ~ "Employed",
-      
-      employ %in% c(
-        "Temporarily laid off",
-        "Unemployed"
-      ) ~ "Unemployed",
-      
-      employ %in% c(
-        "Retired",
-        "Permanently disabled",
-        "Homemaker",
-        "Student"
-      ) ~ "Not in labor force",
-      
-      TRUE ~ NA_character_
-    )
-  )
-
-
-# STEP 3: Confirm creation
-
-table(submersion$employment_group, useNA = "ifany")
-table(submersion$employ, submersion$employment_group, useNA = "ifany")
+nrow(table_data)

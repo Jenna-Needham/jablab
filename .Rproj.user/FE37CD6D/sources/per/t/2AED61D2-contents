@@ -1,0 +1,542 @@
+################################################################################
+############                  DEMOGRAPHIC ANALYSIS                   ############
+################################################################################
+
+# Table 1 describes the original survey sample (n = 1,000) 
+
+# Education uses the original and more detailed categories (education_detail was
+# created earlier in data cleaning)
+
+
+############                  Gender                     ############
+
+table(submersion$gender, useNA = "ifany")
+
+# Turn table into a percentage table 
+
+round(
+  prop.table(
+    table(submersion$gender)
+  ) * 100,
+  1
+)
+
+############                  Race                       ############
+
+table(submersion$race_group, useNA = "ifany")
+
+# Turn table into a percentage table 
+
+round(
+  prop.table(
+    table(submersion$race_group)
+  ) * 100,
+  1
+)
+
+############                  Education                  ############
+
+table(submersion$education, useNA = "ifany")
+
+# Turn table into a percentage table 
+
+round(
+  prop.table(
+    table(submersion$education)
+  ) * 100,
+  1
+)
+
+
+################################################################################
+############       TABLE 2: CONFIDENCE BY DEMOGRAPHICS                #########
+################################################################################
+
+# High = Confident
+# Low = Not confident
+#
+# Unsure responses are included in the Not confident category
+#
+# All three demographic comparisons use the same complete-case sample
+# created in Complete_Cases.R (expected N = 986).
+
+############                  Gender                     ############
+
+# Counts
+
+gender_confidence_table <- table(
+  gender_confidence$gender,
+  gender_confidence$confidence
+)
+
+# Print table
+
+gender_confidence_table
+
+# Row percentages
+
+round(
+  prop.table(
+    gender_confidence_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+# Chi-squared test
+
+gender_confidence_chisq <- chisq.test(gender_confidence_table)
+
+gender_confidence_chisq
+
+# Check expected cell counts
+
+gender_confidence_chisq$expected
+
+############                  Race                       ############
+
+# Counts
+
+race_confidence_table <- table(
+  race_confidence$race_group,
+  race_confidence$confidence
+)
+
+# Print table 
+
+race_confidence_table
+
+# Row percentages
+
+round(
+  prop.table(
+    race_confidence_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+# Chi-squared test
+
+race_confidence_chisq <- chisq.test(race_confidence_table)
+
+race_confidence_chisq
+
+# Check expected cell counts
+
+race_confidence_chisq$expected
+
+############                  Education                  ############
+
+# Counts
+
+education_confidence_table <- table(
+  education_confidence$education,
+  education_confidence$confidence
+)
+
+education_confidence_table
+
+
+# Row percentages
+
+round(
+  prop.table(
+    education_confidence_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+# Chi-squared test
+
+education_confidence_chisq <- chisq.test(education_confidence_table)
+
+education_confidence_chisq
+
+# Check expected cell counts
+
+education_confidence_chisq$expected
+
+################################################################################
+############       TABLE 3: OBJECTIVE COMPETENCE                      #########
+################################################################################
+
+# These tables show the distribution of responses to the
+# three vehicle-submersion knowledge questions.
+#
+# The original survey sample is used (N = 1,000).
+
+
+############                  Question 1                  ############
+# Safest escape method
+
+table(submersion$plan_escape, useNA = "ifany")
+
+# Show percentages across answers 
+
+round(
+  prop.table(
+    table(submersion$plan_escape)
+  ) * 100,
+  1
+)
+
+############                  Question 2                  ############
+
+# Time available to escape
+
+table(submersion$time_escape, useNA = "ifany")
+
+# Show percentages across answers 
+
+round(
+  prop.table(
+    table(submersion$time_escape)
+  ) * 100,
+  1
+)
+
+
+############                  Question 3                  ############
+
+# Who should be helped first
+
+table(submersion$who_save, useNA = "ifany")
+
+# Show percentages across answers 
+
+round(
+  prop.table(
+    table(submersion$who_save)
+  ) * 100,
+  1
+)
+
+
+############          Individual Correct Answers             ############
+
+# Correct = 1
+# Incorrect = 0
+
+table(submersion$correct_CNJ202, useNA = "ifany")
+
+# Show percentages (correct or incorrect) 
+
+round(
+  prop.table(
+    table(submersion$correct_CNJ202)
+  ) * 100,
+  1
+)
+
+
+table(submersion$correct_CNJ203, useNA = "ifany")
+
+# Show percentages (correct or incorrect) 
+
+round(
+  prop.table(
+    table(submersion$correct_CNJ203)
+  ) * 100,
+  1
+)
+
+
+table(submersion$correct_CNJ204, useNA = "ifany")
+
+# Show percentages (correct or incorrect) 
+
+round(
+  prop.table(
+    table(submersion$correct_CNJ204)
+  ) * 100,
+  1
+)
+
+############          Knowledge Score Distribution             ############
+
+# Count the number of questions each respondent answered correctly (OVERALL)
+# Possible scores range from 0 to 3.
+
+table(submersion$knowledge_score, useNA = "ifany")
+
+# Show percentages (correct or incorrect), this shows the distribution of 
+# answers from 0 to 3. 
+
+round(
+  prop.table(
+    table(submersion$knowledge_score)
+  ) * 100,
+  1
+)
+
+
+############          All Three Questions Correct             ############
+
+# Count the number of respondents who answered all three questions correctly (1 = yes, 0 = no)
+# All_correct views if a respondent got all 3 answers correct or none
+
+table(submersion$all_correct, useNA = "ifany")
+
+# Show percentages (correct or incorrect) of answers
+
+round(
+  prop.table(
+    table(submersion$all_correct)
+  ) * 100,
+  1
+)
+
+################################################################################
+############           ADDITIONAL CONFIDENCE ANALYSIS                  #########
+################################################################################
+
+# Examine the original five-point confidence distribution.
+# This preserves the ordering of the original responses.
+
+
+############          Five-Point Confidence Distribution          ############
+
+table(submersion$confidence_score, useNA = "ifany")
+
+round(
+  prop.table(
+    table(submersion$confidence_score)
+  ) * 100,
+  1
+)
+
+
+############          Three-Category Confidence Distribution     ############
+
+# Not confident = Responses 1 and 2
+# Unsure = Response 3
+# Confident = Responses 4 and 5
+
+table(submersion$confidence_group, useNA = "ifany")
+
+round(
+  prop.table(
+    table(submersion$confidence_group)
+  ) * 100,
+  1
+)
+
+
+############          Confidence by Knowledge Score              ############
+
+# Examine how many questions respondents answered correctly
+# within each confidence group.
+#
+# This uses everyone with valid confidence and knowledge responses.
+
+confidence_knowledge_data <- submersion %>%
+  filter(
+    !is.na(confidence_group),
+    !is.na(knowledge_score)
+  )
+
+# Counts
+
+confidence_knowledge_table <- table(
+  confidence_knowledge_data$confidence_group,
+  confidence_knowledge_data$knowledge_score
+)
+
+confidence_knowledge_table
+
+
+# Row percentages
+
+round(
+  prop.table(
+    confidence_knowledge_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+############          Confidence and Knowledge Correlation          ###########
+
+# Examine whether higher confidence tends to be associated
+# with a higher number of correct answers.
+
+cor.test(
+  confidence_knowledge_data$confidence_score,
+  confidence_knowledge_data$knowledge_score,
+  method = "spearman",
+  exact = FALSE
+)
+
+
+################################################################################
+############       TABLE 4: INFORMATION STATUS BY DEMOGRAPHICS         #########
+################################################################################
+
+# Informed = Confident and all three knowledge questions correct
+# Misinformed = Confident but not all three knowledge questions correct
+# Underinformed = Not confident and all three knowledge questions correct
+# Uninformed = Not confident and not all three knowledge questions correct
+#
+# Other gender responses are excluded.
+# Other race responses are retained.
+#
+# All three demographic comparisons use the same complete-case sample
+# created in Complete_Cases.R (expected N = 986).
+
+
+############             Overall Information Status                  ##########
+
+# Counts
+
+table(table4_data$information_status, useNA = "ifany")
+
+
+# Percentages
+
+round(
+  prop.table(
+    table(table4_data$information_status)
+  ) * 100,
+  1
+)
+
+
+############                       Gender                             ##########
+
+# Counts
+
+gender_status_table <- table(
+  table4_data$gender,
+  table4_data$information_status
+)
+
+gender_status_table
+
+
+# Row percentages
+
+round(
+  prop.table(
+    gender_status_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+# Chi-squared test
+
+gender_status_chisq <- chisq.test(gender_status_table)
+
+gender_status_chisq
+
+# Check expected cell counts
+
+gender_status_chisq$expected
+
+
+############                         Race                             ##########
+
+# Counts
+
+race_status_table <- table(
+  race_status$race_group,
+  race_status$information_status
+)
+
+race_status_table
+
+
+# Row percentages
+
+round(
+  prop.table(
+    race_status_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+# Chi-squared test
+
+race_status_chisq <- chisq.test(race_status_table)
+
+race_status_chisq
+
+# Check expected cell counts
+
+race_status_chisq$expected
+
+
+############                      Education                           ##########
+
+# Counts
+
+education_status_table <- table(
+  education_status$education,
+  education_status$information_status
+)
+
+education_status_table
+
+
+# Row percentages
+
+round(
+  prop.table(
+    education_status_table,
+    margin = 1
+  ) * 100,
+  1
+)
+
+
+# Chi-squared test
+
+education_status_chisq <- chisq.test(education_status_table)
+
+education_status_chisq
+
+# Check expected cell counts
+
+education_status_chisq$expected
+
+
+################################################################################
+############                FINAL SAMPLE SIZE CHECK                   #########
+################################################################################
+
+# Table 1
+
+nrow(submersion)
+
+
+# Table 2
+
+nrow(gender_confidence)
+nrow(race_confidence)
+nrow(education_confidence)
+
+
+# Table 3
+
+nrow(submersion)
+
+
+# Additional confidence analysis
+
+nrow(confidence_knowledge_data)
+
+
+# Table 4
+
+nrow(table4_data)
+nrow(race_status)
+nrow(education_status)
+

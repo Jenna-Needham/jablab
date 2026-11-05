@@ -1,0 +1,333 @@
+############                   MEDIA VARIABLES                      ############
+
+
+# These variables are specifically for Paper 2
+
+############                   Primary Media Channels                        ############
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$CC24_300_1, useNA = "ifany")
+table(submersion$CC24_300_2, useNA = "ifany")
+table(submersion$CC24_300_3, useNA = "ifany")
+table(submersion$CC24_300_4, useNA = "ifany")
+table(submersion$CC24_300_5, useNA = "ifany")
+
+# STEP 2: Create media variables 
+
+submersion <- submersion %>%
+  mutate(
+    
+    yes_social_media = case_when(
+      CC24_300_1 == "selected" ~ 1,
+      CC24_300_1 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    watched_tv_news = case_when(
+      CC24_300_2 == "selected" ~ 1,
+      CC24_300_2 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    read_newspaper = case_when(
+      CC24_300_3 == "selected" ~ 1,
+      CC24_300_3 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    listened_radio_news = case_when(
+      CC24_300_4 == "selected" ~ 1,
+      CC24_300_4 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    none_media = case_when(
+      CC24_300_5 == "selected" ~ 1,
+      CC24_300_5 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+
+# STEP 3: Confirm creation
+
+table(submersion$yes_social_media, useNA = "ifany")
+table(submersion$watched_tv_news, useNA = "ifany")
+table(submersion$read_newspaper, useNA = "ifany")
+table(submersion$listened_radio_news, useNA = "ifany")
+table(submersion$none_media, useNA = "ifany")
+
+############                  Social Media Engagement                      ############
+
+# These questions ask about different types of political activity
+# on social media.
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$CC24_300d_1, useNA = "ifany")
+table(submersion$CC24_300d_2, useNA = "ifany")
+table(submersion$CC24_300d_3, useNA = "ifany")
+table(submersion$CC24_300d_4, useNA = "ifany")
+table(submersion$CC24_300d_5, useNA = "ifany")
+table(submersion$CC24_300d_6, useNA = "ifany")
+
+# STEP 2: Create social media variables 
+
+submersion <- submersion %>%
+  mutate(
+    
+    posted_political_content = case_when(
+      CC24_300d_1 == "selected" ~ 1,
+      CC24_300d_1 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    commented_politics = case_when(
+      CC24_300d_2 == "selected" ~ 1,
+      CC24_300d_2 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    read_watched_political = case_when(
+      CC24_300d_3 == "selected" ~ 1,
+      CC24_300d_3 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    followed_political_event = case_when(
+      CC24_300d_4 == "selected" ~ 1,
+      CC24_300d_4 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    forwarded_political_content = case_when(
+      CC24_300d_5 == "selected" ~ 1,
+      CC24_300d_5 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    none_political_social_media = case_when(
+      CC24_300d_6 == "selected" ~ 1,
+      CC24_300d_6 == "not selected" ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+# STEP 3: Confirm creation
+
+# STEP 3: Confirm creation
+
+table(submersion$posted_political_content, useNA = "ifany")
+table(submersion$CC24_300d_1, submersion$posted_political_content, useNA = "ifany")
+
+table(submersion$commented_politics, useNA = "ifany")
+table(submersion$CC24_300d_2, submersion$commented_politics, useNA = "ifany")
+
+table(submersion$read_watched_political, useNA = "ifany")
+table(submersion$CC24_300d_3, submersion$read_watched_political, useNA = "ifany")
+
+table(submersion$followed_political_event, useNA = "ifany")
+table(submersion$CC24_300d_4, submersion$followed_political_event, useNA = "ifany")
+
+table(submersion$forwarded_political_content, useNA = "ifany")
+table(submersion$CC24_300d_5, submersion$forwarded_political_content, useNA = "ifany")
+
+table(submersion$none_political_social_media, useNA = "ifany")
+table(submersion$CC24_300d_6, submersion$none_political_social_media, useNA = "ifany")
+
+############                  Social Media Engagement Index                      ############
+# Total engagement ranges from 0 to 5.
+#
+# Active engagement:
+# posting, commenting, or forwarding political content
+#
+# Passive engagement:
+# reading/watching political content or following political events
+
+submersion <- submersion %>%
+  mutate(
+    
+    social_media_engagement =
+      posted_political_content +
+      commented_politics +
+      read_watched_political +
+      followed_political_event +
+      forwarded_political_content,
+    
+    active_social_media =
+      posted_political_content +
+      commented_politics +
+      forwarded_political_content,
+    
+    passive_social_media =
+      read_watched_political +
+      followed_political_event
+  )
+
+# Confirm creation
+
+table(submersion$social_media_engagement, useNA = "ifany")
+table(submersion$active_social_media, useNA = "ifany")
+table(submersion$passive_social_media, useNA = "ifany")
+
+############                  Political Party                      ############
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$pid3, useNA = "ifany")
+
+# STEP 2: Create political party variables 
+
+submersion <- submersion %>%
+  mutate(
+    pid3_model = case_when(
+      pid3 == "Democrat" ~ "Democrat",
+      pid3 == "Republican" ~ "Republican",
+      pid3 == "Independent" ~ "Independent",
+      TRUE ~ NA_character_
+    )
+  )
+
+# STEP 3: Confirm creation
+
+table(submersion$pid3_model, useNA = "ifany")
+table(submersion$pid3, submersion$pid3_model, useNA = "ifany")
+
+
+############                  Family Income                     ############
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$faminc_new, useNA = "ifany")
+
+# STEP 2: Create income variables 
+
+submersion <- submersion %>%
+  mutate(
+    income_group = case_when(
+      
+      faminc_new %in% c(
+        "Less than $10,000",
+        "$10,000 - $19,999",
+        "$20,000 - $29,999",
+        "$30,000 - $39,999"
+      ) ~ "Under $40,000",
+      
+      faminc_new %in% c(
+        "$40,000 - $49,999",
+        "$50,000 - $59,999",
+        "$60,000 - $69,999",
+        "$70,000 - $79,999"
+      ) ~ "$40,000 to $79,999",
+      
+      faminc_new %in% c(
+        "$80,000 - $99,999",
+        "$100,000 - $119,999",
+        "$120,000 - $149,999"
+      ) ~ "$80,000 to $149,999",
+      
+      faminc_new %in% c(
+        "$150,000 - $199,999",
+        "$200,000 - $249,999",
+        "$250,000 - $349,999",
+        "$350,000 - $499,999",
+        "$500,000 or more"
+      ) ~ "$150,000 or more",
+      
+      faminc_new == "Prefer not to say" ~ NA_character_,
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+# STEP 3: Confirm creation
+
+table(submersion$income_group, useNA = "ifany")
+table(submersion$faminc_new, submersion$income_group, useNA = "ifany")
+
+############                  Home Ownership                     ############
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$ownhome, useNA = "ifany")
+
+# STEP 2: Create home ownership variables 
+
+submersion <- submersion %>%
+  mutate(
+    home_ownership = case_when(
+      ownhome == "Own" ~ "Own",
+      ownhome == "Rent" ~ "Rent",
+      ownhome == "Other" ~ "Other",
+      TRUE ~ NA_character_
+    )
+  )
+
+# STEP 3: Confirm creation
+
+table(submersion$home_ownership, useNA = "ifany")
+table(submersion$ownhome, submersion$home_ownership, useNA = "ifany")
+
+############                  Region                     ############
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$region, useNA = "ifany")
+
+# STEP 2: Create region variables 
+
+submersion <- submersion %>%
+  mutate(
+    region_group = case_when(
+      region == "Northeast" ~ "Northeast",
+      region == "Midwest" ~ "Midwest",
+      region == "South" ~ "South",
+      region == "West" ~ "West",
+      TRUE ~ NA_character_
+    )
+  )
+
+# STEP 3: Confirm creation
+
+table(submersion$region_group, useNA = "ifany")
+table(submersion$region, submersion$region_group, useNA = "ifany")
+
+############                  Employment Status                     ############
+
+# STEP 1: Examine variable and coding schema
+
+table(submersion$employ, useNA = "ifany")
+
+# STEP 2: Create employment variables 
+
+submersion <- submersion %>%
+  mutate(
+    employment_group = case_when(
+      
+      employ %in% c(
+        "Full-time",
+        "Part-time"
+      ) ~ "Employed",
+      
+      employ %in% c(
+        "Temporarily laid off",
+        "Unemployed"
+      ) ~ "Unemployed",
+      
+      employ %in% c(
+        "Retired",
+        "Permanently disabled",
+        "Homemaker",
+        "Student"
+      ) ~ "Not in labor force",
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# STEP 3: Confirm creation
+
+table(submersion$employment_group, useNA = "ifany")
+table(submersion$employ, submersion$employment_group, useNA = "ifany")
